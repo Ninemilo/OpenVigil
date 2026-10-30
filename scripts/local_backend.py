@@ -98,6 +98,9 @@ def prepare(root: Path, frontend_port: int, api_port: int) -> dict[str, object]:
         values[f"WINDOPS_{role.upper()}_API_KEY"] = secrets.token_hex(24)
     compose = yaml.safe_load((root / "backend/docker-compose.yml").read_text())
     services = compose["services"]
+    for service in services.values():
+        if "build" in service:
+            service["build"]["context"] = str(root / "backend")
     for name, ports in {
         "postgres": ["127.0.0.1:25432:5432"],
         "redis": ["127.0.0.1:26379:6379"],

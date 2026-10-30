@@ -70,9 +70,27 @@ yarn-error.log*
 *.ppt
 *.pptx
 *.pdf
+!/backend/tests/fixtures/document/scanned-zh.pdf
+!/tests/fixtures/knowledge-pdf/plain.pdf
+!/tests/fixtures/knowledge-pdf/rotated.pdf
+!/tests/fixtures/knowledge-pdf/cropped.pdf
 
 # Local documentation (CI policy lives under scripts/)
 /docs/
+# These operational contracts are read by CI and must exist in a clean clone.
+!/docs/
+/docs/*
+!/docs/production-deployment.md
+!/docs/demo-gap-audit.md
+!/docs/project-improvement-recommendations-2026-10-23.md
+!/docs/improvement-execution-2026-10-23.md
+!/docs/runbooks/
+/docs/runbooks/*
+!/docs/runbooks/release-acceptance.md
+!/docs/runbooks/incident-response.md
+!/docs/runbooks/postgresql-migration-recovery.md
+!/docs/runbooks/collection-performance.md
+!/docs/runbooks/delegated-replay-and-command-idempotency.md
 
 # Local finesse design history
 /.finesse/

@@ -1,3 +1,137 @@
+# 当前活动任务：代码结构重构（2026-10-29）
+
+状态：**COMPLETE_LOCAL_SOFTWARE_VERIFIED**。本轮按职责拆分任务中心与推理模块；计划和报告为仅本地文档：`docs/refactor/REFACTOR_PLAN-2026-10-29.md`、`docs/refactor/REFACTOR_REPORT-2026-10-29.md`。下方既有项目改进保持原外部验收状态。
+
+| 编号    | 工作                     | 状态 | 最终证据                                                                                                            |
+| ------- | ------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------- |
+| RF29-01 | 起点调查、保护与基线     | DONE | 1084份原件；前端旧9/9；后端153通过/2个既有断言失败，原件保留                                                        |
+| RF29-02 | 任务中心职责拆分         | DONE | 1000→522行；17定义/导入绑定等价、116条旧断言保持；相关Node12/12                                                     |
+| RF29-03 | 推理模块职责拆分         | DONE | 835→105行；12定义/88全局绑定等价、旧35名称兼容；相关179/179                                                         |
+| RF29-04 | 冻结源码整合验证         | DONE | Node311/311（310叶case+1父test）、后端388/388、Chromium96/96；均零失败/跳过；build/原包体/覆盖率/全仓类型与lint通过 |
+| RF29-05 | 独立复核、保护核对与报告 | DONE | 双向独立复核无发现；原文件无删除、HEAD/index/.env及历史后缀保持；测试PID20156退出、4179端口释放                     |
+
+- 结构：页面保留查询/状态/筛选/组合，视图/支持/创建抽屉各归owner；推理旧入口保留兼容导出与工厂，schema/校验/两种provider分开。没有新增依赖或改变业务行为。
+- 静态与预算：255源严格mypy、全量Ruff、488文件格式；TypeScript/ESLint/Prettier通过。覆盖率89.43%/52.63%/33.35%达到原89/49/32，原应用2764141≤2764800字节。架构事实、当前index制品策略和diff检查通过。
+- 失败处理：基线2个审核用例按已有知识上下文契约加强断言，保留其余evidence/完整快照/SHA/存储原件严格检查；前端首轮310通过/1文档链接失败，按仅本地文档约定修正后全套311通过。早期等价验证器、unused imports与新浏览器定位失败均已修正且原件保留，不改写成首轮通过。
+- 证据：`.artifacts/refactor-20261029/verification-receipt-v1.json`绑定源码与原失败/重验材料。后端扩大回归为26文件388项，浏览器为最新构建单次96项；SQLite/确定性provider及HTTP传输fixture明确，不作为真实模型/CARE、真实依赖、远端CI、生产发布或现场验收。未提交、推送或部署。
+
+---
+
+# 当前活动任务：项目改进（2026-10-23）
+
+状态：**BLOCKED_EXTERNAL_ACCEPTANCE**。本地工程与阶段验证已收口，整体目标未完成；剩余真实服务、CARE、远端CI、专家评测与正式发布取决于外部前提。[简短当前状态](CURRENT_STATUS.md)；任务原文：[项目改进建议](docs/project-improvement-recommendations-2026-10-23.md)；条件：[验收矩阵](docs/improvement-execution-2026-10-23.md)。下方旧任务及其结论均为历史快照，不被本轮状态覆盖。
+
+| 编号 | 优先级 / 范围 | 当前状态 | 下一项验收 |
+| --- | --- | --- | --- |
+| IMP23-01 | P0 CI 冻结、CARE runner、同提交 required checks | LOCAL_VERIFIED / EXTERNAL_PENDING | 真实 runner、制品和新 SHA 远端成功 |
+| IMP23-02 | P0 OCR 独立镜像与正式发布链 | LOCAL_VERIFIED / EXTERNAL_PENDING | Linux镜像与实际签名/CVE/SBOM/部署/同版本联合验收 |
+| IMP23-03 | P1 混塔与 OCR 持续回归 | LOCAL_VERIFIED / EXTERNAL_PENDING | 五场景真实依赖联合运行及新 SHA CI |
+| IMP23-04 | P1 异步任务健康 | LOCAL_VERIFIED / EXTERNAL_PENDING | 真实Redis/worker中断、自然过期与恢复 |
+| IMP23-05 | P1 真实工作流评测 | LOCAL_VERIFIED / EXTERNAL_PENDING | 专家标注案例、有限调用预算及供应商/PG验收 |
+| IMP23-06 | P1 原件与数值复核 | LOCAL_VERIFIED / EXTERNAL_PENDING | 真实PG/MinIO/OCR浏览器联合场景 |
+| IMP23-07 | P2 规模和并发性能 | LOCAL_TOOL_VERIFIED / MEASUREMENT_ONLY | 四场景真实多服务负载；生产规模和延迟资格未获 |
+| IMP23-08 | P2 模块拆分 | LOCAL_SOFTWARE_VERIFIED / EXTERNAL_PENDING | 真实CARE全规模和业务服务场景保持待验收 |
+| IMP23-09 | 当前状态入口 | DONE_LOCAL_VERIFIED | 当前/历史入口、候选制品与文档链接已核对 |
+
+当前工程阶段（更新至2026-10-24）：本轮本地工程已收口。最终性能工具/生命周期/边界整合510/510、25源静态检查通过；前端308项Node（307叶case与1父test）、原覆盖率和包体门槛、构建/类型/lint通过；浏览器92个唯一用例最新结果通过（全套90通过与2个新增定位失败，修正测试后2/2定向通过，未将重验相加成94）。CARE、外壳、知识页拆分已验证。修正Windows launcher漏采后的单次SQLite/HTTP实测204/204成功，5个自有进程每个162次资源观测，原机组查询P95/P99参考仍未达标；真实Docker多服务运行未执行。外部条件已连续多个目标轮次确认未就绪，当前无可独立继续的必要工程项；用户已明确保留CARE和专家/预算为外部待办，无需重复索取。下方按阶段积累的“当前/正在”描述保留当时快照，以本段及表格为准。
+
+- 最终性能阶段：`p2-performance-services-phase-receipt-v1.json`绑定510项无失败/错误/跳过测试、25源mypy/Ruff/格式/Bandit零发现、当前源码和保护摘要。`software-tree-small-v1.receipt.json`记录唯一新实测，实际解释器RSS峰值236335104字节、CPU增量43.453125秒；查询P95/P99=1233.29/1278.03ms，历史=973.13/1188.28ms，CLI3、measurement_only、qualified=false。自有树正常退出、5份原进程身份消失、端口释放；未将新资源方法与旧三轮作同条件优化同比，未因超标放宽预算。
+- 最终模块拆分：`p2-module-split-phase-receipt-v1.json`绑定21份源码/测试与41份实际证据，确认CARE/外壳/知识页拆分及静态数据去重等价、原包体与覆盖率门槛通过；记录最终构建/TypeScript/ESLint、307个Node叶case及92个浏览器唯一用例最新结果。浏览器完整轮次90通过/2失败与修正后2项定向通过分别保留，不声称一次92项全绿。4179端口与登记的两个测试服务PID均已释放，真实服务和CARE全规模验收继续待外部条件。
+- 最终候选与状态入口：`improvement-candidate-v1-receipt.json`的独立index候选通过制品策略、链接和架构检查，1085个blob，37原件备份/HEAD/用户index/.env保持。候选tree是未提交快照；随后仅更新当前状态/执行进度/性能说明，不将后续文档伪称属于该tree。所有原失败和历史阶段收据保留。没有提交、推送、付费模型调用或生产部署。
+
+- IMP23-08 CARE子项 LOCAL_SOFTWARE_VERIFIED：原评估模块2745→1194行，输入、计算、证据各归属独立模块。35个定义AST/签名/旧入口对象身份、261项全局绑定、精确合成数值及旧制品重放一致；69个不同测试最新结果通过、零跳过，5源Ruff/严格mypy通过。共享首轮50/51的失败是services实际入口尚未登记，修复入口登记后边界6/6，旧失败原件保留。收据 `care-split/verification-receipt-v1.json`；原37文件备份及HEAD/index/.env保持。真实Linux runner、真实制品、PostgreSQL全规模与发布仍UNVERIFIED。
+- IMP23-08 应用外壳局部验证：1129→447行，导航、侧栏、搜索、通知分离。28项Node、20项AST等价、TypeScript/ESLint/格式/架构检查通过，收据 `app-shell-verification-v1.json`。新增2项浏览器交互测试已登记但尚未运行；待知识页冻结后统一build、包体门禁、完整Node和浏览器验证。
+- IMP23-07 services整合首轮：`services-integrated-v1.xml` 476项中473通过、3失败，均在资源采样测试，保留原日志调查整套运行下的进程RSS和采样失败原因；不能用此前18/18专项覆盖此次失败。20源严格mypy复验通过（`services-integrated-mypy-v2.log`），修正ROOT从定义模块显式导入；未运行Docker或真实多服务负载。
+- IMP23-07 软件基线证据更正（2026-10-24）：复核三次旧报告发现API登记的是Windows虚拟环境Python launcher PID，RSS恒约5.4MB且CPU增量为0，实际解释器子进程未纳入。旧HTTP延迟/成功数及原报告保留，但旧“资源覆盖完整”仅成立于登记PID，不能证明API总RSS/CPU覆盖或定位瓶颈。正在修复实际执行PID/进程树观测并补回归；不改写旧阶段收据。现有日志未记录SQL/审计阶段耗时，不能断言查询尾延迟主要由审计造成。
+- IMP23-08 前端整合首轮：统一build、全仓TypeScript及ESLint通过；`split-bundle-v1.log`显示原应用JS为2766363字节，超过2764800预算1563字节。保持原预算与资源计量，正在寻找等价去重；完整Node与浏览器尚未执行。
+- IMP23-07 资源测试定位完成：原测试采样pytest自身，施加有界320MiB诊断分配后实测602–613MB，复现原3项同样失败；改用显式自有stdlib子进程后，相同压力下3/3通过，资源专项19/19。生产资源门禁及512MiB/1GiB预算未改，新增64MiB门槛真实对照验证显式纳入高RSS父进程仍拒绝。收据 `resources-isolation-receipt-v1.json`，原整合/压力失败均保留，下一步完整整合重验。
+- IMP23-08 知识页局部验证：970→580行，上传流程231行、问答展示232行。45项AST等价、10份受保护源码/旧测试原SHA保持；46项相关Node（含5项实际上传命令配置/未知结果同键恢复）通过，类型/lint/格式通过。`knowledge-split-receipt.json`区分hook调度/传输fixture与真实命令实现；统一前端和真实业务验收仍待执行。
+- IMP23-09 文档入口子项已验证：两任务文档按精确路径开放，其他docs规则保持；八语言README新增历史快照说明和当前入口、性能手册链接；架构登记新模块职责，原生成facts和历史正文保持。4项文档/架构检查及格式通过，`imp23-09-docs-receipt.json`保存13份文件摘要；根 `CURRENT_STATUS.md` 和最终候选全体核对仍在收口。
+- IMP23-08 包体修复已验证：仅将 `lib/operations-data.ts` 的10个重复静态字符串提为私有具名常量；129次常量展开AST、8数据导出、269对象共享关系及7函数的2352次输入/返回/引用关系等价。`operations-data-dedup/final-receipt.json`保留dirty原件与逐项证据；build v2原应用2764138≤2764800字节，节约2225字节、余662字节，原门槛/依赖/资源分类保持。最新完整Node 308/308（含父test）、零失败/跳过，覆盖率89.38%/52.60%/33.34%达到原89/49/32门槛（`split-frontend-v2.xml/log`）。
+- IMP23-08 浏览器正在执行：首个CLI因PowerShell未引用reporter逗号参数而未启动，`split-browser-v1.log`保留；修正启动后92项完整套件运行中。新增2项测试在桌面用默认可见role查找隐藏移动导航按钮，已通过失败截图/既有CSS定位；改为显式包含hidden的同一enabled水合断言，生产UI未改，待定向复验，不能把本轮浏览器写为通过。
+- IMP23-07 最终状态竞态已修复：真实事件循环回归复现末跳取消后已有failure_codes但status仍measurement_only；序列化前按失败账本最终降级，整文件22/22通过，red原件保留（`services-integration-review-receipt-v1.json`）。全backend现冻结，正在顺序整合load工具、新software树和旧公共边界。
+
+- IMP23-07 services组件进展：批量文档HTTP与积压控制`load-documents-backlog-v3.xml` 72/72，六路数据/只读保护`services-dataset-v2.xml` 16/16，SQL只读claim/恢复及共享collector/result身份`services-evidence-v4.xml` 49/49。Windows真实角色与命令整树`load-services-process-command-v7.xml` 21/21；stack集成`load-services-stack-v4.xml` 54/54，其中Docker输出为明确fixture，命令timeout/cancel/orphan使用真实自有子孙socket进程。资源`load-services-resources-v6.xml` 18/18捕获实际Python launcher和解释器子PID内存增长；容器统计为loopback fixture。各组件收据保留旧失败版本，不相加为无重叠总数，也不代表自然300秒租约、Docker或OCR联合实测。
+- IMP23-07 总入口局部验证：`root-services-v1.xml` 59/59覆盖签名/输入/私有TLS bootstrap、实际TLS观测HTTP与入口失败/取消/清理保存；`load-services-api-v2.xml` 12/12使用真实ASGI/SQLite与实际services身份映射，验证4主体×6GET、JWT篡改、拒绝域、审计和完整测试头绕过的正反对照。修正服务scope漏mission等权限，保留tenant+farm隔离；外部graph/storage/rate/audit适配器明确fixture。总入口后续改动仍需最终整合重验。
+- IMP23-07 独立复核修复：固定Docker本机transport，取消期间完整执行资源清理，命令执行改为内核Job/进程组整树包含；此前真实探针证实单杀父进程会残留孙进程，失败证据`load-stack-review-v1.json`保留。新增资源窗口探针发现首采样等待会使尾部漏采，现等待计入测量总预算；backlog最小180/600秒注册与实际剩余截止分离；完整bypass控制头用于有鉴别力的拒绝检查。正在补超时被下层转换为部分结果后不得启动下一工作负载的回归，尚不宣布services完整通过。
+
+- IMP23-07 services局部工程验证（尚未集成完成）：`load-bootstrap-v1.xml` 79/79覆盖有界GET/新逐请求JWT、四主体两域、隔离配置、TLS材料、固定角色bootstrap和Compose拥有控制；其中Compose使用明确CLI输出fixture，命令时限/取消使用真实本地子进程，不代表Docker运行。API直接以DEVELOPMENT选实际MinIO/Redis分支，worker以TEST选离线确定性embedding；没有验证后改成production或填造镜像digest，私有配置SHA绑定且不继承provider凭据。文档只读SQL模块另有`load-document-evidence-final.xml` 21/21，真实SQLite业务事务/结果hash/权限范围/尝试证据，存储与parser输出明确fixture，索引可重试失败计unfinished。此前软件冻结阶段收据为`p2-performance-software-phase-receipt.json`；局部新测试含旧用例，不与154简单相加。整体与真实多服务/生产规模资格保持未完成。
+
+- IMP23-07 工具局部验证：严格 profile/统计/可比性契约63/63（`load-contracts-v2.xml`），有界进程资源采样21/21（`load-resources-final.xml`）；Windows实际自有进程RSS/CPU采样成功，Linux分支尚未实机验证。真实HTTP排程器与软件生命周期回归仍在收尾，不能据此宣布全项完成。
+- IMP23-07 软件工具 LOCAL_VERIFIED：最新真实HTTP排程41/41（`load-runner-v4.xml`）、真实SQLite/API/子进程生命周期19/19（`performance-e2e-final-v4.xml`）及10项架构/公开表面/模型/schema边界通过，连同上述契约和资源共154个独立测试。修复Windows低精度时钟、资源异常丢失账本、cleanup阶段取消可能漏停服，以及有效连接池配置未进入可比身份；正常/资源故障/停服取消三次各204请求真实成功，故障报告明确failed，均exit0释放端口，报告严格回读一致。早期代码同时修改导致源身份门禁失败、tuple/list回读差异及旧报告保留。当前正运行冻结源码下三次software-small测量；真实services四场景（尤其批量OCR/积压）尚需实现及外部运行，不将Docker不可用当作省略工程的理由。
+- IMP23-07 冻结软件基线完成（测量资格仍false）：`load-software-baseline-v1.json` 保存三次独立新库/同profile/依赖/有效配置/环境/数据/缓存身份对照。每轮100机组+100历史请求、4预热和另10次权限控制；测量600/600成功、错误率0，机组P95=1045.58/1124.23/1071.02ms，P99=1162.22/1252.14/1157.98ms，持续超过500/1000ms参考；历史P95=918.94/953.34/938.93ms，P99=1016.94/1063.06/1018.85ms。资源实际302/302、312/312、308/308覆盖，三个自有API均正常退出/释放端口，业务表与保护摘要保持。三次CLI均exit3 measurement_only，未声称优化/生产达标。候选独立index/制品/链接/架构通过（`load-candidate-v1-receipt.json`），37原件/HEAD/index/.env保持；未提交推送。后续services实施方案在 `load-services-implementation-plan.md`，尚未实现，真实Linux/PG/Redis/MinIO/OCR与生产规模仍未验收。
+- IMP23-07 首次软件测量已留原件：新建SQLite含9000条合成历史，独立Uvicorn/四真实鉴权主体、两授权域与拒绝域；200测量+4预热均成功，业务表不变、读取审计新增、原HEAD/index/.env与源码前后保持，自有服务退出/端口释放。机组列表P95/P99约1063/1109ms，超过预登记500/1000ms参考；历史序列约953/1079ms。报告 `.artifacts/performance-e2e/eeec62b8cbc740de948f82ee8c019050/report.json` 保留 `measurement_only`、qualified=false，不改阈值，不作为生产容量。该早期报告顶层仍用measurement_complete；后续工具改为更明确measurement_only及exit3，并补强异常清理与部分账本保留；最终同源码基线尚未运行。
+
+- 起点保护：已保存 37 个已有修改或新增文件原件，记录 HEAD/index/.env 摘要；`baseline.json` 及 `original/` 位于 `.artifacts/improvements-20261023/`。未修改或复制根 `.env` 内容。
+- 当前外部观察：2026-10-23 GitHub API 复核旧运行 `37715679784` 为五项 failure、一项 success、CARE cancelled，非正在排队；`remote-initial.json` 保存状态。本次尚未证明新提交成功或 runner 已配置。Docker 启动实际失败：backend 在创建 `dockerInference` socket 时报告系统无法访问文件，日志确认所有引擎已停；证据 `docker-start-failure.log`。只终止了本任务挂起的 `docker info` 查询，未重置 Docker、改系统配置或处理其他项目资源。Linux 容器验收待恢复运行环境。
+- IMP23-01 冻结环境子项 LOCAL_VERIFIED：真实跨层 CI 改为 `uv sync --project backend --frozen --extra test`，把同一环境放入 GITHUB_PATH，迁移/seed/server 使用相同解释器，取消启动时隐式 resync。新增契约并通过 47/47；项目内新建冻结 `ci-env` 实际安装142包、pip check、该环境47/47、唯一迁移头0032与离线迁移SQL通过。证据：`p0-01-frozen-install.log`、`p0-01-frozen-contracts.xml`、`p0-01-migrations.sql`。这不是 Linux 或远端通过，整项保持 IN_PROGRESS。
+- 远端刷新：公开 Actions API 确认最新运行仍是 `37715679784` / HEAD `bc88d450...`，总体 failure，详见 `remote-recent-runs.json`。Git HTTPS 查询遇443连接失败，不能冒充同步成功；连接器可读仓库与旧运行。专用 runner/真实制品路径待用户输入，未更改远端。
+- 用户已确认（2026-10-23）：Linux x64 CARE runner 及 `WINDOPS_CARE_REAL_ARTIFACT_ROOT`、`WINDOPS_CARE_FULL_SCALE_ROOT` 尚未准备，按要求保留为外部待办。上条“待用户输入”为此前记录；当前无需重复索取，真实 CARE 与同 SHA 全部检查保持 UNVERIFIED，继续独立工程工作。
+- 用户另已确认（2026-10-23）：脱敏专家标注案例和有限真实模型调用预算尚未准备，保留为外部待办。无需重复索取，不进行付费模型调用；IMP23-05 的真实供应商、专家样本和现场资格仍为 UNVERIFIED。
+- IMP23-06 已开始实施：沿用原件授权与不可变摘录，新增按需本地 PDF 渲染及独立数值复核头/追加历史、五项来源身份绑定、独立复核与同键重放。首批真实 SQLite/API 证据门禁测试6/6（`review-evidence-v1.xml`），验证错误修正被拒绝→确认原值→独立批准四修订、收据/历史回读与篡改拒绝；浏览器观测在该单测中为明确fixture，不能据此声称真实浏览器/PG/MinIO闭环。完整迁移/权限/并发/浏览器验证仍在进行。
+- IMP23-06 后端子项 LOCAL_VERIFIED：新增0033迁移、复核API与权威头/追加事件，相关扩大回归177/177（`review-integrated-v1.xml`），包含来源身份漂移、当前范围重验、独立审核、重放/并发、原文恒等、事务回滚、审计哈希和迁移约束；Ruff/格式、6源严格mypy和新增源Bandit零发现通过。已同步迁移头声明与实际业务场景证据脚本，真实PG/MinIO/OCR浏览器联合场景尚未执行。
+- IMP23-06 网关子项 LOCAL_VERIFIED：补齐数值复核GET/POST与decision仅POST的生产路径；实际构建worker验证委托主体、方法、含查询参数目标、UTF-8请求体SHA、幂等key/重放响应头，30/30（`review-gateway-v5.log`）。初始路径拒绝及测试在vinext首次请求安装fetch包装器前注入传输导致的失败保留；先初始化再安装fixture后重验，不把传输fixture当作远端后端。
+- IMP23-06 前端子项 LOCAL_FIXTURE_VERIFIED：本地PDF.js worker实际渲染合成PDF字节，SHA/页码/真实像素/区域/旋转裁剪降级、取消/超时/到期与800%移动端内部滚动通过；数值复核验证Unicode选区、原文保留、独立审批、未知请求跨组件卸载同键重试及主体隔离。最终默认浏览器90/90、0失败/错误/跳过（`review-browser-v5-default-port.xml`，4.3分钟），全前端295/295且原覆盖门槛通过（lines91.91%、branches52.24%、functions33.10%）；全仓ESLint/TypeScript和本阶段格式检查通过。默认套件仍不含真实外部服务场景。
+- IMP23-06 包体和失败追溯：新增PDF依赖使旧全量总预算真实失败，原件保留；按需复核UI/PDF核心/worker分别设50/450/1200KiB上限，manifest动态引用、同源worker与所有静态JS计量门禁32项通过，未知资源仍计原应用。知识统计/属性及通知重复DOM等价去重后，v5原应用2764776≤2764800字节，复核UI36730、核心431097、worker1172645；全部113个JS共4405248字节，不把新增资源隐藏为零成本。Vite worker file URL及卡住时超时不结束均已修复并真实浏览器负向验证；首轮完整套件使用4197遇旧测试硬编码4179，失败/中断原件保留，确认默认端口空闲后重验90/90，未修改视觉基线或弱化断言。
+- IMP23-06 交付边界：使用说明 [KNOWLEDGE_REVIEW.md](backend/KNOWLEDGE_REVIEW.md)，本地阶段收据 `p1-numeric-review-phase-receipt-v2.json` 保存具体源码/报告、独立候选清单与原37份修改及HEAD/index/.env保护；v1原件保留，v2仅澄清Node的296项含一个父test，JUnit有295个叶case。SQLite/API、真实PDF渲染的传输fixture和构建网关验证分别成立；已扩展的真实document场景尚未运行，不宣称PG/Redis/MinIO/OCR联合通过。旋转/裁剪未证实的框不绘制，未知命令只保存在当前页面内存；原摘录/检索语料不变，复核不授予作业许可。未付费调用模型、提交、推送或发布。
+- IMP23-06 候选验证补强：独立索引首轮遇Windows subprocess默认GBK解码失败；UTF-8重验发现三份新PDF仍被全局忽略。已仅开放三个精确fixture路径并标记binary，其他PDF保持忽略；新增Git选择/属性回归通过，最终全前端296/296且覆盖率仍达原门槛（`review-frontend-v2.xml`）。候选v3的1012个blob通过制品策略/Markdown链接与三PDF字节恒等核对，原index/HEAD/.env及37份备份完整（`review-candidate-v3-receipt.json`）；各旧索引/失败日志保留。4179/4197/4198本任务测试服务监听均已释放（`review-browser-v5-services.json`）。
+- IMP23-05 当前推进：发现生产知识检索此前仅传通用摘要，已让有界原段落、来源/版本/内容摘要进入诊断、方案与审核并持久化相同快照。真实 SQLite/PDF API→生产图测试先失败后通过，相关56/56；旧结构环境缺 pyOMA_2/scipy 的5项失败保留，改用既有完整冻结环境复验51/51（`knowledge-context-structural-v2.xml`），未修改依赖或削弱断言。请求前预算预留模块与生产适配器注入回归95/95（`workflow-budget-final.xml`），不代表付费模型调用。正在接通隔离数据库、源数据/答案分离、生产outbox执行和事后评分，未取得专家样本或真实供应商工作流资格。
+- IMP23-05 来源与隔离子项 LOCAL_VERIFIED：独立输入/标签文件、原字节与案例双SHA、完整案例集合、来源文件大小/hash、显式范围和无预制结果/向量已接通；真实SQLite验证发现SAVEPOINT提前提交并修复，24/24（`workflow-eval-inputs-v4.xml`）。新数据库helper复现并修复可变目标名、提前清理成功、未创建却声明fresh和URL路由覆盖问题；SQLite实库与PG连接/迁移边界注入合计68/68（`workflow-eval-database-final.xml`），真实PostgreSQL仍UNVERIFIED。
+- IMP23-05 生产执行子项：专用子进程冻结输入后，调用实际任务创建/outbox/七节点并保留失败与费用；拒答仍由生产0.5置信度门槛拦截，候选仅用于事后评分。runner真实SQLite+生产LiteLLM适配器传输fixture 10/10（`workflow-runner-v5.xml`），验证三次模型调用使用同一检索正文、失败回滚后费用/节点保留、无审批工单及SQLite不含隐藏响应标记。首轮3例usage fixture形状错误、后续1例仅给2方案被生产精确3方案门禁拒绝均已保留，修正fixture而未弱化门禁。真实CLI软件两例到达人工审核不等于标签质量通过。
+- IMP23-05 评分/预算子项：独立score复验来源映射、拒答门槛、方案/五维审核和费用，保留全部分母；联合141/141（`workflow-scoring-v4.xml`），未知费用保持null、embedding按批内逐条完整容量预留、工作截止与清理宽限分离。当前发现安装版LiteLLM会把embedding的max_retries=0回退到默认2，正在修复专用进程的SDK内部重试控制并补真实SDK边界测试，不能宣称供应商预算闭环已完整通过。使用说明为本地文件 `backend/WORKFLOW_EVALUATION.md`；专家样本与付费预算尚未获本轮证据。
+- IMP23-05 SDK与最终整合 LOCAL_VERIFIED：专用子进程导入前使用本地SDK元数据并固定默认重试为0，校验实际OpenAI客户端零重试，关闭fallback/Router/Responses分流并在退出恢复覆盖配置。离线真实SDK A/B/A观察2→0→2，chat/embedding最终HTTP方法截断各一次，首次导入在禁用socket连接/DNS的子进程中零网络尝试；SDK/预算61/61（`workflow-eval-transport-final-v2.xml`）。当前18模块整合 **295/295**、0失败/错误/跳过（`workflow-integrated-v3.xml`，120.23秒）。v1的1个新模块未登记、v2的1个新CLI误用旧帮助参数断言均保留；现按两个真实CLI分别检查参数，保持原27个console入口与无孤立模块门禁。
+- IMP23-05 最终软件CLI与质量边界：`workflow-software-v3/run.json` 两例真实SQLite/outbox/七节点均停在人工审核、零审批/工单；独立 `score.json` **1/2符合合成标签**，拒答例仍给出诊断，classification/expected_stop失败且CLI exit1。该结果证明评分能揭示问题，不能把50%合成样例符合度称作真实模型准确率；未改变确定性实现或标签来制造全绿。原始供应商错误在outbox前安全转换，实际DB字节中不保存测试私有trace，已计费用量仍保留。专家数据/有限真实调用预算已询问但本轮尚未提供，真实PG/供应商/专家/现场资格保持UNVERIFIED。
+- IMP23-05 静态与保护：10源strict mypy、18文件Ruff/格式、架构与10项前端文档/导入检查通过。Bandit原报告保留2项Low（B404/B603），人工核对为当前Python可执行文件+固定模块+独立argv+无shell+超时的子进程通用告警，未关闭规则，不能称零发现。精确源码/报告/评分/37份原件与HEAD/index/.env保护见 `p1-workflow-phase-receipt.json`；前阶段收据和失败原件保持。整体目标仍IN_PROGRESS，下一独立项为IMP23-06，已保存只读源码准备 `imp23-06-source-plan.md`，尚未实现或验收原件复核工作台。
+- IMP23-02 发现并复现旧安全锁升级未同步运行身份：`pypdf==6.19.0` 与代码预期6.17.0不一致，新增全12核心包与hash锁一致性测试先失败（`p0-02-lock-red.xml`），同步代码预期后解析契约/进程/结果身份25/25通过（`p0-02-identity-green.xml`）。新隔离解析环境按当前hash锁实际安装87包，原环境和模型保持。
+- IMP23-02 真实 Windows OCR 局部验收：新解析环境、既有固定只读模型和两页中文扫描件实际运行6/6通过（`p0-02-actual-ocr.xml`，137.41秒）。验证加密/损坏/空白/超大页面/错误模型拒绝，以及实际OCR生成15段、9表格单元格、正确页码/数值文字、SQLite段落入库/索引与原件API；API对象存储为测试内存适配器，不能声称PostgreSQL/MinIO/容器/现场已验收。
+- IMP23-02 镜像策略与离线探针子项：新增独立digest/API父层/UID/命令/隔离环境检查及模型/扫描件/代码/完整锁身份校验。首轮55通过1失败（测试预期异常类型与Pydantic拒绝层不符）保留；修正异常分类后56/56通过（`p0-02-artifact-contracts-v2.xml`），两新增模块strict mypy/Ruff通过。这是策略测试，真实Linux探针尚未执行，正式发布链仍在实现。
+- IMP23-02 部署策略子项 LOCAL_VERIFIED：新增三镜像+模型内容身份（保持旧双镜像v1身份）、OCR overlay、独立SA/Secret、单进程队列、3Gi资源限制、版本化只读模型PVC与受限依赖网络；拒绝额外网络授权、错镜像/模型、写模型卷、提权及配置漂移。原策略与新增负向测试90/90、四模块strict mypy通过（首轮类型问题已修正），实际 `kubectl kustomize` → renderer → policy CLI通过28资源/10工作负载。证据 `p0-02-deployment-v1.xml`、`p0-02-rendered-policy-synthetic.json`；使用明确合成digest，仅证明渲染/策略行为，不是实际集群部署或签名发布。
+- IMP23-02 发布链代码已接入：OCR exact API父镜像构建、来源证明、Cosign、HIGH/CRITICAL扫描、SPDX、批准模型/探针ZIP、实际离线探针、三镜像部署、独立document_runtime报告与最后document_release_gate。最终门禁重新执行原11个API及结构门禁，不信任已有qualified摘要；独立报告必须绑定三镜像/模型/时间窗，逐项引用未失败/跳过JUnit，并包含持久化解析结果。报告收集脚本增加真实JSONB重建结果导出。尚未推送/实际签名/运行正式发布，整项保持IN_PROGRESS。
+- IMP23-02 配置及输入验证：补齐API/relay等所有工作负载必需的解析路径声明，以实际Settings加载验证；更新后的渲染CLI证据为 `p0-02-rendered-policy-synthetic-v2.json`。归档首轮19通过1失败保留，定位Windows ZIP原始文件名规范化差异，补查orig_filename并用真实恶意ZIP字节复测20/20（`p0-02-inputs-v2.xml`）；未放宽路径/哈希/大小门禁。
+- IMP23-02 验收脚本硬化：Bandit发现原脚本27条assert在Python -O下会消失；已全部改为明确RuntimeError拒绝，转换时保存27条件AST等价证据（`document-evidence-guard-equivalence.json`），一处随后按lint将not-is等价改为is-not。真实SQLite错误状态在独立-O进程中3/3被拒绝（`p0-02-guards.xml`）；17文件Ruff/格式、11源strict mypy、最终Bandit零发现（`p0-final-bandit.json`）。单脚本mypy首轮缺源码搜索路径的错误已通过显式MYPYPATH=src重验解决，未忽略类型错误。
+- IMP23-02 扩大回归首轮349通过1失败（`p0-final-v2.xml`），唯一失败为旧测试硬编码两份扫描；现按预期三镜像更新为精确三份路径集合，并增加文档最终门禁位于结构门禁之后的断言。当前完整相关重验350/350通过、0失败/错误/跳过、exit0（`p0-final-v3.xml`，86.06秒），覆盖文档解析/任务/身份/归档/部署/发布、旧API/结构门禁、模块边界与业务runner。旧失败原件保留；不是全仓库回归或真实容器/远端资格。阶段摘要与源码哈希在 `p0-local-phase-receipt.json`。
+- 当前保护核验：37份原件备份哈希全部保持、无原文件缺失，HEAD/index/.env未变；原修改中仅CI/两个相关测试/目标与进度有本任务增量，见 `protection-p0.json`。架构检查与10项前端文档/导入契约通过；原P1/P2范围和外部验收仍待推进。
+- 前一轮 10 项前端、51 项后端定向通过保持其检查快照，不算本轮改动通过。
+- IMP23-03 五场景 CI 工程已接入：保留 required check `business-cross-layer-e2e`，新增 maintenance / structural / structural-modal / structural-scope / document 独立矩阵，结构额外依赖与隔离 OCR 哈希锁按需安装；固定合成扫描件与模型清单随源码纳入。Node 入口转发全部场景参数和真实退出码，所有场景输出非跳过浏览器 JUnit；聚合要求同一 SHA / workflow / attempt 的五份报告、数据库/对象回读及成功清理，只上传脱敏 verdict。当前配置、聚合负向、扫描件和 runner 相关 124/124 通过（`p1-ci-v3.xml`），尚未执行本轮五类真实服务或远端 CI，整项仍 IN_PROGRESS。
+- IMP23-01/03 发布检查重跑缺陷：旧实现接受同名同 SHA 历史任一成功，复现 4 失败 / 1 通过（`p1-latest-red.xml`）。现获取所有分页尝试，拒绝未结束尝试，按有时区的实际开始时间选择最新完成结果，时间缺失或歧义拒绝，不推测 ID 大小或页序；失败、取消、跳过、等待和旧结果均有回归。第一轮合并测试 123 通过 / 1 测试常量拼写错误（`p1-ci-v2.xml`），修正后上述 124/124 全通过；原失败证据保留。
+- IMP23-03 候选与入口核验：实际执行 `pnpm test:e2e:business --scenario document --help`，先完整构建再由真实 Python 入口接收参数（`p1-launcher-build-help.log`）；这是入口/构建验证，不是场景运行。7 文件 Ruff/格式、4 脚本 strict mypy、12 项前端契约、Prettier 与架构检查通过。使用独立临时 index 生成候选树/ZIP，950 个 blob 通过制品策略，PDF/模型清单归档字节一致、无 `.env`/scratch；37 份原件、HEAD、用户 index、`.env` 保持，见 `p1-candidate-receipt.json`。未提交或推送。
+- IMP23-04 队列观测子项 LOCAL_VERIFIED：能力接口增量返回 SQL 权限过滤后的等待/运行/重试、过期租约、超出解析预算、近24小时终止失败、最老等待/运行年龄及最多10条脱敏失败。租户/文档实体/DataScope 在聚合前过滤，禁止共享缓存；读接口不重投任务。真实 SQLite/API、越权/匿名拒绝、异常脱敏、过期领取恢复及旧知识/模块/公开表面/Schema 回归62/62通过（`p1-health-v2.xml`）；补充跨租户隔离后当前健康模块12/12通过（`p1-health-final.xml`），两新增/改动源 strict mypy、Ruff/格式通过。恢复测试实际执行生产领取/发布逻辑，但解析输出为明确的协议 fixture，不是实际 OCR/PG/Redis 联合验收。
+- 当前前端完整测试238/238、0失败/跳过，覆盖率 lines91.53%、branches51.61%、functions32.91%达到原门槛；已构建制品通过包体预算，证据 `p1-frontend-coverage.log`。增量发布/聚合/健康代码Bandit零发现（`p1-bandit.json`），架构与文档链接通过。阶段代码与证据摘要在 `p1-local-phase-receipt.json`，原失败报告保持。
+- IMP23-04 恢复投递修复 LOCAL_VERIFIED：复现失败/过期任务每两秒重复投递、最早50条占用扫描窗口的问题（`p1-recovery-red.xml`）；新增事务性五分钟投递预留，仅更新 dispatched_at，不覆盖状态、尝试次数、claim token 或租约。连续 relay 50→1→0、SQLite并发预留无重叠、发送失败后间隔重投和新领取保护验证通过；相关39/39（`p1-recovery-final.xml`），中间时区测试断言失败原件保留。这不代表 PostgreSQL 行锁或真实 Redis 验收。
+- IMP23-04 能力 API 与验收边界：API 已接入专用 worker 观测，只有配置齐全、身份匹配、有效心跳和真实运行预检同时成立才允许 worker_health_verified；健康/范围API、停启控制器、证据失败拒绝、旧业务runner相关57/57（`p1-health-root-v1.xml`）。旧空租约按实际领取规则满五分钟才视为到期。真实 document 场景新增自有worker强制停止→租约过期→离线排队→重启解析→终态失败与范围隔离断言；尚未运行依赖服务，不能据脚本实现标记真实场景通过。
+- IMP23-04 前端局部验证：健康条已接入配置/就绪/积压/预警/离线/版本不符/过期，后台暂停、前台15秒刷新和读取失败撤下旧健康；失败/未知队列不填零，配置允许时仍可排队。当前构建、包体预算、全仓类型检查及相关ESLint通过，前端测试覆盖率 lines91.64%、branches51.78%、functions32.94%达到原门槛（`p1-health-frontend-coverage.log`）。浏览器 fixture 与最终 worker 回归仍在进行，整项保持 IN_PROGRESS。
+- IMP23-04 心跳与就绪软件 LOCAL_VERIFIED：Redis服务器时间/45秒TTL、最多32条有界观测、完整提交/解析源码/模型/核心版本/完整锁比较、实际broker调用与消费者活性、独立预检已接通。复核发现的完整锁身份缺口、缓存迭代误算Redis成功、关闭异常跳过清理三处均修复并负向测试。最终worker相关63/63（`worker-health-v3.xml`）；扩大健康/恢复/任务/隔离/公开契约/发布回归224/224、0失败/错误/跳过（`p1-health-integrated-v1.xml`），Ruff/格式、严格mypy与生产源Bandit零发现（`p1-health-source-bandit.json`）。报告有重叠，不累加为唯一测试数。
+- IMP23-04 真实 Windows 预检 LOCAL_VERIFIED：当前三文件源码、固定完整依赖锁与只读模型，实际初始化Docling/OCR/布局/表格pipeline，10.61秒成功；模型前后全量哈希、子进程退出/临时目录清理通过。证据 `worker-health-runtime-preflight-v1.json`。这不含真实Redis Lua或Linux镜像；SQLite租约及Dramatiq传输fixture不冒称真实消息服务。
+- IMP23-04 UI 验证 LOCAL_FIXTURE_VERIFIED：最终浏览器13/13（`ocr-health-browser-v4.xml`）、Node专项20/20、全部前端248/248与原覆盖率门禁通过；320/375/414/768/1440布局及八状态预览已实际查看，类型/lint/格式通过，自有4196服务监听已释放。证据 `ocr-health-ui-receipt.json`；首轮命令引用错误和预览测试路径失败分别保留v1/v3日志。浏览器使用明确传输fixture，当前真实API/Redis/worker中断恢复仍待独立服务。
+- IMP23-03 证据读取补强：新增真实UTF-16/LE/BE JUnit表明原字节DOCTYPE检查可被多字节编码绕过，3个失败保留于 `p1-health-xml-red.xml`；现仅接受Playwright UTF-8并在解析前检查空字节/声明，原字节摘要保持，当前矩阵/汇总52/52（`p1-health-matrix-final.xml`）。扩大脚本Bandit原件 `p1-health-bandit.json` 保留；通用subprocess和显式测试凭据字面量提示按边界复核，XML声明拒绝已用上述真实编码反例验证，不将全脚本扫描声称零发现。
+- IMP23-03 结构范围证据硬化 LOCAL_VERIFIED：14个生产assert改为显式RuntimeError，全部条件与其他AST保持（`structural-scope-guard-equivalence.json`）。真实SQLite在独立普通/-O/-OO解释器中均拒绝错误实体计数，相关11/11（`structural-scope-guards-v2.xml`），严格mypy、Ruff/格式与Bandit B101检查通过；首轮因测试未声明test环境而被Settings拒绝的原报告保留，没有放宽生产配置校验。
+- 当前子项：健康阶段源码及证据汇总至 `p1-health-phase-receipt.json` 后，推进真实工作流评测的生产内容连接、输入/标签隔离和预算门禁。CARE 外部待办无需再次索取；Docker/Linux、真实队列故障与正式发布仍未验证，专家案例/有限付费预算、数值复核、性能及模块拆分范围保留。
+
+---
+
+# 历史任务：GitHub Actions 修复（2026-10-08）
+
+状态：**LOCAL_FIX_VERIFIED / CARE_RUNNER_NOT_CONFIGURED / REMOTE_RECHECK_PENDING**。本次起点 `bc88d45080ef0cb0cbe446695e862755cf8e4edb`，工作树干净。远端运行 `37715679784`：真实跨层 E2E 成功，frontend/backend/browser/business/postgres 五项失败，CARE 等待专用 runner；用户确认尚未配置 runner。分支保护读取被 GitHub App 的 administration 权限限制拒绝；仓库发布脚本明确要求七项成功，不把它误称为已读出的分支保护设置。
+
+- 已定位并修复本地文件掩盖的 CI 输入缺口：Git ignore 与制品策略仅开放七份必要运维文档的精确路径，其他 docs 保持本地忽略/禁止提交，大文件与缓存限制不变；目标/进度中的本地制品改为明确的本地文件引用。Markdown 检查同时要求目标在仓库文件清单中，避免 ignored 文件掩盖干净克隆断链。最新前端构建、包体和覆盖率测试 236/236，0 fail/skip；覆盖率 lines 91.55%、branches 51.65%、functions 32.91%，原门槛保持。
+- CARE 官方源码、许可证的已冻结 v6 哈希来自 CRLF 表示；官方固定 commit 的 Git blob 为 LF。校验仅统一这两种换行，保留既有协议/制品身份以及 commit/tree/gitlink 门禁；新增 LF/CRLF 与源码篡改回归。CARE/运维/发布契约首轮 57/57 通过。Windows 所有权校验支持路径大小写/分隔符差异，并保留 PID/创建时间/命令/可执行文件与目录边界核对；本机实际 sentinel、JSON 重放、错误身份拒绝、幂等停止、占用端口和兄弟目录拒绝通过，GitHub runner 仍需新运行验证。
+- PostgreSQL 五组契约远端已经通过，后续 migration 声明验证因缺少 ignored 发布手册而失败；所需文档已纳入本次候选文件。
+- 业务 E2E 远端在 Compose up 阶段失败。registry 探针证明 Docker Hub 的 frozen MinIO 镜像不可拉取，Quay 同版本不可访问。固定官方 minio/mc commit、源码归档 SHA-256、Go/Alpine 基础镜像 digest 的源码构建与真实重验已通过，见下述收据；旧缓存版成功仅保留为历史比较。
+- 证据：`.artifacts/ci-repair-20261008/`，原远端业务报告、失败日志和本地回归保留。尚未 commit/push/发布；CARE 真制品、专用 runner、当前提交七项远端成功与正式发布保持 UNVERIFIED。
+
+### 后续验证与安全修复
+
+- COMPLETE_LOCAL_BROWSER_VERIFIED：完整浏览器首轮 66 pass / 1 fail，暴露移动导航在水合前接受点击却不开抽屉；修复初始化完成前的 disabled 状态，增加阻塞 JS 加载的实际回归。专项 4/4、最终完整浏览器 68/68（0 fail/skip），最新前端 236/236 和覆盖率门槛、ESLint/类型/格式均通过，未更改视觉基线或延长断言超时。
+- COMPLETE_SOURCE_BUILT_MINIO_BUSINESS_VERIFIED：固定官方 MinIO/mc 源码及归档 SHA、基础镜像 digest 的两镜像已实际构建。首轮 Go 模块下载 EOF 留证，缓存构建重验成功。新 MinIO 的维护业务真实闭环通过；新的冻结 Python 环境下再次运行也通过，5 个 MinIO 对象回读、业务数据库/异步 worker、cleanup、原 .env/index 保护均通过。证据为 `20261008023744-dd5d06` 与 `20261008024606-190a5f` 的 report.json；不是旧 registry 缓存通过。
+- COMPLETE_LOCAL_SECURITY_VERIFIED：Bandit 的生产 assert 改为明确的超时选择分支，保留普通/委员会推理的超时与审计行为。pip-audit 初次发现 5 包 14 项漏洞；仅升级 langgraph-sdk 0.4.6、multidict 6.9.1、PyJWT 2.15.1、pypdf 6.19.0、urllib3 2.8.0，并冻结最低安全约束及两个运行容器导出锁。OCR 独立锁仅同步 pypdf 6.19.0，CPU/其他包版本保持；本轮不复述旧 OCR 模型精度验收。独立 `.artifacts/ci-repair-20261008/backend-verified-env` 安装冻结全 extras/groups，原 backend/.venv 未同步或覆盖；该环境 pip-audit 无已知漏洞、Bandit exit0、204 源 strict mypy、382 文件 Ruff/格式和锁导出检查通过。
+- COMPLETE_CLEAN_CHECKOUT_VERIFIED：在项目内部的独立 Git 索引与 clean-checkout 验证候选文件，原索引保持；LF checkout 的 Markdown 文件清单检查、唯一迁移头、CARE 等价门禁、57 项发布/运维契约通过，不依赖 ignored docs/制品。最新入口/路由/schema/工单契约 13/13 通过；候选文件纳入索引后暴露 docs 前缀禁令，已使用现有精确路径例外限定七份 CI 必需文档。最终 37 文件候选的制品策略（926 blobs）、架构与 Markdown 核对通过；`candidate-final.json` 与总收据记录最终 tree/源码 SHA，旧轮次保留各自快照。
+- 原环境完整后端：996 项收集，951 passed / 5 failed / 0 errors / 40 既有外部门禁 skipped，4254.574 秒，原始 XML/log 保留。两项 CLI closure 失败经独立 `-x` 复现为 PATH 未加入 Scripts，CI 原工作流已有 GITHUB_PATH 设置；冻结新环境补齐 PATH 后三项 closure 通过。另三项是下述未同步的契约，修正复测通过，不将该原全量改写为零失败。额外 branch 覆盖率首轮主动中断后改用 CI 原参数，中断记录保留。CARE runner/真实制品与七项新 SHA 的远端成功仍待外部前提，审批请求仅针对修复分支/PR，尚未据此执行远端写入。
+- COMPLETE_LOCKED_RELATED_REGRESSION：冻结新环境及正确 Scripts PATH 的 18 模块最终回归 179/179，0 fail/error/skip，包含 CARE 依赖/参考、运维/发布、broker/本地配置、推理超时与思考开关、JWT/权限、安全、知识解析/段落/异步解析/结果身份/子进程和 WT-023 完整审计工作流；不与旧轮次重叠相加。`locked-regression-final.xml`、`local-verification-receipt.json` 保存范围和源码 SHA。CI 固定 uv 0.12.1 的 `lock --check` 通过；标准 pnpm start 的 Demo 与无效生产配置失败关闭 smoke 通过。源码构建的 MinIO/mc 两服务真实 bucket/version/lifecycle 初始化退出0及新项目清理通过，收据 `minio-init-receipt.json`；没有操作原本地依赖栈。
+- COMPLETE_FROZEN_CONTRACT_REGRESSION：全量回归收集到三处既有 Docling 增量未同步的契约，已按真实入口/路由/schema 补齐：登记解析计算与独立 actor 两个进程引用；严格冻结新增 GET parser-capabilities 路由，保留原 95 条路由摘要；严格冻结可选 parser 字段及 native 默认值，投影该单一扩展后保留原 58 个 legacy schema 摘要。冻结新环境 8/8 通过、相关 Ruff/格式通过；原全量中的旧断言失败保持，不能据此改写为一次零失败全量。
+- COMPLETE_LOCAL_COVERAGE_BUDGET：原全量全局 76.10% 达到 68% 门槛，但原工单关键模块 86.73% 低于 88%，原失败保留。新增真实数据库/已批准工单测试，证明前序未完成及不合格测量被拒绝、五任务状态不变、零现场证据写入。冻结新环境最终修复模块 16/16（0 fail/error/skip）通过，包含原五个失败 case 和新工单门禁；原全量数据与该轮当前同源码数据累计的覆盖率全局 76.16%、工单模块 88.50%、修改行 100%，全部原预算通过。证据为 `backend-remediation-final.xml`、`backend-final-coverage.json` 与 `backend-coverage-budget-final.log`；累计覆盖率不能冒称一次完整零失败运行。
+
+---
+
 # 文档维护记录：八语言 README 同步（2026-10-08）
 
 状态：**DONE_DOCUMENTATION_VERIFIED**。按当前 HEAD `11847e5`、代码/配置及最新软件验收核对英语、简体中文、德语、西班牙语、法语、日语、韩语、意大利语八份 README；本轮只更新 README 与此进度记录。
@@ -12,7 +146,7 @@
 
 **兼容性收尾 COMPLETE_LOCAL_SOFTWARE_VERIFIED（2026-10-07）**：保留原生v1请求哈希，省略/显式native都可用旧键重放；换parser拒绝旧键，原生/Docling均在读取收据或原件前复核当前权限，撤权不增加replay_count。专项13/13（包含在当前八模块80/80中，不重复相加）；208源码strict mypy、相关Ruff通过。最终实际服务20261007104442-70218e与Linuximage-20261007104429-756032重新验证当前源码，204安装源/结果SHA/对象/图/审计、cleanup与.env/index/HEAD/五个参考源SHA全部核对。最终收据：`.artifacts/document-parser-20261007/software-verification-receipt-v2.json`；下述v1收据保留为首轮快照。
 
-状态：**COMPLETE_LOCAL_SOFTWARE_VERIFIED**。按原混塔技术方案在既有平台上补齐独立 PDF/OCR 软件链路。起点 HEAD `6c5721b`，工作树干净；未重做历史首版闭环或重构。任务：[本次实施任务](docs/design/document-parser-implementation-2026-10-07.md)；运行说明：[DOCUMENT_PARSER.md](backend/DOCUMENT_PARSER.md)；验收：[本次软件验收](docs/reports/document-parser-software-acceptance-2026-10-07.md)。
+状态：**COMPLETE_LOCAL_SOFTWARE_VERIFIED**。按原混塔技术方案在既有平台上补齐独立 PDF/OCR 软件链路。起点 HEAD `6c5721b`，工作树干净；未重做历史首版闭环或重构。任务：本次实施任务（本地文件：`docs/design/document-parser-implementation-2026-10-07.md`）；运行说明：[DOCUMENT_PARSER.md](backend/DOCUMENT_PARSER.md)；验收：本次软件验收（本地文件：`docs/reports/document-parser-software-acceptance-2026-10-07.md`）。
 
 - D07-01：DONE_LOCAL_VERIFIED。已读取规则/目标/当前验收/技术方案/源码与本地 Docling 参考；当前知识段落/入库、结构子进程、结构工作流与真实 FDD 模态闭环五模块42项回归正常 exit0；收集数量与输出/进程退出对应，首轮未请求 JUnit，不冒充已有 XML。`d07-01-receipt.json` 保存范围/退出状态及 `.env`/index/HEAD 保护核对。
 - D07-02：DONE_WINDOWS_LINUX_VERIFIED。通用CPU哈希锁/Windows87包、pip check、预取模型来源/许可证/commit与字节清单核对。七执行模块/12核心包在子进程实际观察；actual-runtime-v5.xml六项真实离线转换全通过：两页中文、正负数/单位、15段/9表格单元格、空白第一页及坏PDF/空白/加密/超尺寸/错模型拒绝。Linux当前镜像无网络/只读/UID10001探针通过，204已安装源码逐字节一致；主环境不安装OCR依赖。SQLite/内存对象接口夹具与实际服务分别说明；领域OCR精度UNVERIFIED。
@@ -53,7 +187,7 @@
 - 最终回归：332/332、0失败/错误/跳过，正常exit0；架构/0032迁移头、12产品源和5harness源strict mypy、21文件Ruff/格式、新增结构Bandit通过，重叠测试不累加。
 - 最终镜像：images-20261005192608-c43290 API/结构实际Linux构建/两探针通过；exact API父层、专用命令、线程限制核对。234构建源保持、两个已安装包各191源与当前代码逐字节一致；FDD0.5Hz/flat-line拒绝、非root/只读/无网络、完整131锁中130适用包及pip check通过。
 - 真实缺陷修复：Neo4j投影交错读取有界版本/数量/逐行检查；新结构结果JSONB数值等价哈希，保持精度/类型与旧幂等规则；每次分析冻结声明部署及实际执行版本。所有旧失败/trace与不可变阶段收据保留。
-- 总收据：[p3-final-software-verification-receipt.json](.artifacts/hybrid-tower-20261005/p3-final-software-verification-receipt.json)；可读记录：[软件验收](docs/reports/hybrid-tower-software-acceptance-2026-10-06.md)；当前语义：[软件契约](docs/design/hybrid-tower-software-contract.md)。
+- 总收据：p3-final-software-verification-receipt.json（本地文件：`.artifacts/hybrid-tower-20261005/p3-final-software-verification-receipt.json`）；可读记录：软件验收（本地文件：`docs/reports/hybrid-tower-software-acceptance-2026-10-06.md`）；当前语义：软件契约（本地文件：`docs/design/hybrid-tower-software-contract.md`）。
 - 保护：原.env/HEAD/Git index、历史进度后缀保持；验证服务/registry/volume/进程已清理，保留本地镜像；无提交/推送/发布/上线或付费模型评测。
 - **UNVERIFIED**：真实试点输入/校准/规程/阈值/独立测量/责任人、影子运行和领域精度；正式签名/CVE/独立双镜像联合资格及旧发布阻断保留。Docling/OCR/bbox、SSI/阻尼资格、标定绝对索力和OpenFAST/Kratos按实际前提另行推进。
 

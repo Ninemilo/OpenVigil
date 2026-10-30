@@ -31,7 +31,10 @@ services:
       - windops-redis:/data
 
   minio:
-    image: minio/minio:RELEASE.2025-07-23T15-54-02Z@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.minio
+      target: minio
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: windops
@@ -40,7 +43,7 @@ services:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9000/minio/health/live"]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -48,7 +51,10 @@ services:
       - windops-minio:/data
 
   minio-init:
-    image: minio/mc:RELEASE.2025-07-21T05-28-08Z@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.minio
+      target: mc
     depends_on:
       minio:
         condition: service_healthy

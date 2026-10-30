@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from collections.abc import Iterable
+from datetime import datetime
 from typing import Any
 
 REQUIRED_CHECKS = frozenset(
@@ -46,14 +47,28 @@ def verify_release_checks(check_runs: Iterable[dict[str, Any]], commit_sha: str)
         if not matches:
             failures.append(f"{required}: missing for target commit")
             continue
-        if not any(
-            check.get("status") == "completed" and check.get("conclusion") == "success"
-            for check in matches
-        ):
-            conclusions = ", ".join(
-                f"{check.get('status')}/{check.get('conclusion')}" for check in matches
+        # An unfinished retry cannot be covered by an earlier success. Check IDs
+        # are opaque identifiers, so use the actual start times, not their size
+        # or the API page order, when more than one completed run is returned.
+        if any(check.get("status") != "completed" for check in matches):
+            failures.append(f"{required}: a target-commit run has not completed")
+            continue
+        latest = matches[0]
+        if len(matches) > 1:
+            try:
+                started = [datetime.fromisoformat(check["started_at"]) for check in matches]
+                if any(value.tzinfo is None for value in started) or len(set(started)) != len(
+                    started
+                ):
+                    raise ValueError("ambiguous start times")
+                latest = max(zip(started, matches, strict=True), key=lambda item: item[0])[1]
+            except (KeyError, TypeError, ValueError):
+                failures.append(f"{required}: ambiguous target-commit check history")
+                continue
+        if latest.get("conclusion") != "success":
+            failures.append(
+                f"{required}: latest run was not successful ({latest.get('conclusion')})"
             )
-            failures.append(f"{required}: no completed successful run ({conclusions})")
     return failures
 
 

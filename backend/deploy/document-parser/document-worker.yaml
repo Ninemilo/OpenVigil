@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: windops-document-worker
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: windops-document-models
+spec:
+  accessModes: [ReadOnlyMany]
+  volumeMode: Filesystem
+  storageClassName: ""
+  volumeName: windops-document-models
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windops-document-worker
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: windops-document-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: windops-document-worker
+        app.kubernetes.io/component: document-worker
+    spec:
+      serviceAccountName: windops-document-worker
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 210
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: document-worker
+          image: registry.invalid/windops-document@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          command: [dramatiq]
+          args:
+            - windops_backend.document_parse_tasks
+            - --queues
+            - document-parse
+            - --processes
+            - "1"
+            - --threads
+            - "1"
+          envFrom:
+            - secretRef:
+                name: windops-document-runtime
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+              ephemeral-storage: 128Mi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+              ephemeral-storage: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: models
+              mountPath: /models
+              readOnly: true
+          env:
+            - name: WINDOPS_DOCUMENT_PARSER_PYTHON
+              value: /opt/document-parser/bin/python
+            - name: WINDOPS_DOCUMENT_PARSER_MODELS_PATH
+              value: /models
+            - name: WINDOPS_DOCUMENT_PARSER_RUNTIME_DIRECTORY
+              value: /tmp
+            - name: OPENBLAS_NUM_THREADS
+              value: "1"
+            - name: OMP_NUM_THREADS
+              value: "1"
+            - name: MKL_NUM_THREADS
+              value: "1"
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: models
+          persistentVolumeClaim:
+            claimName: windops-document-models
+            readOnly: true

@@ -590,6 +590,12 @@
   border-bottom: 1px solid var(--border);
 }
 
+@media (min-width: 900px) {
+  .drawer:has([data-source-comparison]) {
+    width: min(1160px, 96vw);
+  }
+}
+
 .drawerHeader > div {
   display: grid;
   gap: 4px;

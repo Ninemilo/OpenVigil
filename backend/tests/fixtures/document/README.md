@@ -1,0 +1,9 @@
+# Synthetic document CI fixture
+
+`scanned-zh.pdf` is the previously verified, synthetic two-page Chinese scan: the first page is blank, the second contains a title, signed numeric values and a three-by-three table. It contains no field observations, customer data or authority to perform work. Its exact bytes are pinned by `expectations.json`; do not derive new expected values from a failed parser run.
+
+`model-manifest.json` freezes the reviewed public model source revisions, licenses, file sizes and SHA-256 values. The model weights are downloaded with `scripts/prepare-document-models.py` into the isolated CI scratch directory and verified against this manifest before the scenario starts. No weights or font binaries are committed here. This manifest uses LF line endings to preserve its raw-byte identity on Windows and Linux.
+
+The PDF was rendered from a synthetic raster using the Windows Microsoft YaHei font, with page dimensions 650 by 850 PDF points. The source rows are `机组 / 索束 / 索力 kN`, `WT-023 / T-01 / 123.45`, and `WT-024 / T-02 / 118.20`; body text includes `+123.45 kN` and `-0.25 mm`. The expected extraction is 15 passages on page 2, including 9 table cells. This is a software regression fixture, not a representative accuracy benchmark.
+
+CI runs maintenance, structural, structural-modal, structural-scope and document jobs independently. The stable `business-cross-layer-e2e` check succeeds only with all five verdicts for the same commit, workflow run and attempt, non-skipped browser cases, persisted data/object evidence and successful owned-resource cleanup. After a partial workflow retry, rerun all scenario jobs to produce one complete attempt. Uploaded artifacts contain only sanitized `report.json` verdicts; private settings, signed links, credentials and traces remain excluded.

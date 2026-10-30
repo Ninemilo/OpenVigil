@@ -40,6 +40,10 @@
 
 The product is positioned as an intelligent platform for wind operations and maintenance. Login imagery and the Demo wind farm illustrate a scenario; they do not define the product's scope or prove field integration or production acceptance.
 
+Current version, remaining work, blockers and verification entry points: [current status](CURRENT_STATUS.md).
+
+**Historical acceptance snapshot (2026-10-07/08).** The following paragraph records the repository review and acceptance boundaries at that time.
+
 Documentation checked against the repository on **2026-10-08**. The current software scope prioritizes **onshore hybrid towers** alongside the existing turbine operations workflow. Structural monitoring, governed retest workflows, and the independent PDF/OCR ingestion path are implemented. The latest document-parser acceptance dated 2026-10-07 is `COMPLETE_LOCAL_SOFTWARE_VERIFIED`; it covers local software and isolated Linux execution. Field accuracy, real calibration and procedures, shadow operation, and formal release qualification remain `UNVERIFIED`. [Execution progress](EXECUTION_PROGRESS.md) separates current conclusions from historical snapshots.
 
 ## Installation
@@ -99,7 +103,7 @@ alembic upgrade head
 windops-reference-import --reference-pack wt023
 ```
 
-The current sole migration head is `0032_structural_workflow`. From `backend/`, run `python scripts/verify_migration_head.py` to check the migration graph and documented declarations.
+The current sole migration head is `0033_knowledge_numeric_review`. From `backend/`, run `python scripts/verify_migration_head.py` to check the migration graph and documented declarations.
 
 The reference import prompts for the `operations_manager` key. Then start the outbox relay, Dramatiq worker, read-audit worker, and API in four separate terminals:
 
@@ -408,6 +412,8 @@ Observations and reference material are synthetic. Diagnosis and embeddings use 
 For direct browser uploads, configure the Worker's `WINDOPS_ARTIFACT_UPLOAD_ORIGINS` with the exact HTTPS origins of upload URLs issued by the backend, separated by commas, and allow PUT/CORS from the application origin in object storage. Default CSP permits only same-origin connections. The setting rejects wildcards, paths, credentials, and CSP directives; invalid values return 503 before executing business requests. Local HTTP is permitted only when both the page and storage use `http://127.0.0.1`, for the isolated tests above.
 
 ### Local user-performance measurement
+
+For bounded multi-user queries, document workloads, resource observations and the software/services profiles, see [performance evaluation](backend/PERFORMANCE_EVALUATION.md). The existing `pnpm measure:performance` workflow below retains its local browser/API measurement behavior.
 
 First start the isolated stack using “Repeatable local startup on Windows”, then run from the repository root:
 

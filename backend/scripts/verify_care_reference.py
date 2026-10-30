@@ -50,7 +50,12 @@ class CareReferenceVerificationError(RuntimeError):
 
 
 def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    # The frozen v6 protocol records the reviewed Windows CRLF representation.
+    # Normalize only LF/CRLF so Linux checks the same source identity without
+    # changing existing protocol/artifact hashes. All other bytes stay exact;
+    # the independently pinned commit, tree and gitlink are also verified.
+    content = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    return hashlib.sha256(content).hexdigest()
 
 
 def _canonical_text_sha256(path: Path) -> str:

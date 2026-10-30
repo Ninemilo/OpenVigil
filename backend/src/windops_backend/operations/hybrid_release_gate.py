@@ -10,7 +10,7 @@ import subprocess  # nosec B404
 import xml.etree.ElementTree as ET  # nosec B405
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
 
@@ -155,6 +155,12 @@ def verify_attested_sbom(output: str, sbom: dict[str, Any], image: str) -> None:
 
 
 def _verify_structural_supply_chain(root: Path, image: str, source_url: str) -> None:
+    verify_runtime_supply_chain(root, image, source_url, kind="structural")
+
+
+def verify_runtime_supply_chain(
+    root: Path, image: str, source_url: str, *, kind: Literal["structural", "document"]
+) -> None:
     # Re-execute signature policy at qualification; a saved 'passed' JSON is insufficient.
     common = [
         "--certificate-identity",
@@ -175,16 +181,16 @@ def _verify_structural_supply_chain(root: Path, image: str, source_url: str) -> 
             timeout=120,
         )
         if not result.stdout.strip():
-            raise ValueError("structural signature or SBOM verification returned no evidence")
+            raise ValueError(f"{kind} signature or SBOM verification returned no evidence")
         outputs.append(result.stdout)
-    sbom_path = _safe_report_path(root, "structural/sbom.spdx.json")
+    sbom_path = _safe_report_path(root, f"{kind}/sbom.spdx.json")
     sbom = json.loads(sbom_path.read_text(encoding="utf-8"))
     if (
         not isinstance(sbom.get("spdxVersion"), str)
         or not sbom["spdxVersion"].startswith("SPDX-2.")
         or not sbom.get("packages")
     ):
-        raise ValueError("structural SBOM must contain a validated SPDX package inventory")
+        raise ValueError(f"{kind} SBOM must contain a validated SPDX package inventory")
     verify_attested_sbom(outputs[1], sbom, image)
 
 

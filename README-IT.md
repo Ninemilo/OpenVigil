@@ -40,6 +40,10 @@
 
 Il prodotto è concepito come piattaforma intelligente per la gestione e la manutenzione eoliche. Le immagini di accesso e il parco Demo illustrano uno scenario; non definiscono l’ambito del prodotto né dimostrano integrazione sul campo o accettazione in produzione.
 
+Versione attuale, attività aperte, blocchi e punti di verifica: [stato attuale](CURRENT_STATUS.md).
+
+**Istantanea storica del collaudo (2026-10-07/08).** Il paragrafo seguente conserva la verifica del repository e i limiti del collaudo di quel periodo.
+
 Documentazione verificata rispetto al repository il **2026-10-08**. L’ambito attuale privilegia le **torri ibride onshore** insieme al flusso esistente di manutenzione delle turbine. Monitoraggio strutturale, nuove misurazioni governate e acquisizione PDF/OCR indipendente sono implementati. L’ultimo collaudo del parser, del 2026-10-07, è `COMPLETE_LOCAL_SOFTWARE_VERIFIED` e copre software locale ed esecuzione Linux isolata. Accuratezza sul campo, calibrazione e procedure reali, esercizio in osservazione e qualifica formale di rilascio restano `UNVERIFIED`. Il [progresso](EXECUTION_PROGRESS.md) distingue conclusioni attuali e istantanee storiche.
 
 ## Installazione
@@ -99,7 +103,7 @@ alembic upgrade head
 windops-reference-import --reference-pack wt023
 ```
 
-L’unica revisione finale di migrazione attuale è `0032_structural_workflow`. Da `backend/`, eseguire `python scripts/verify_migration_head.py` per verificare il grafo delle migrazioni e le dichiarazioni documentate.
+L’unica revisione finale di migrazione attuale è `0033_knowledge_numeric_review`. Da `backend/`, eseguire `python scripts/verify_migration_head.py` per verificare il grafo delle migrazioni e le dichiarazioni documentate.
 
 L’importazione di riferimento richiede la chiave `operations_manager`. Avviare poi il relay outbox, il worker Dramatiq, il worker di audit delle letture e l’API in quattro terminali distinti:
 
@@ -408,6 +412,8 @@ Osservazioni e materiali di riferimento sono sintetici. Diagnosi ed embedding us
 Per caricamenti diretti dal browser, configurare `WINDOPS_ARTIFACT_UPLOAD_ORIGINS` del Worker con le origini HTTPS esatte delle URL di caricamento emesse dal backend, separate da virgole, e consentire PUT/CORS dall’origine dell’applicazione nell’archivio a oggetti. La CSP predefinita consente solo connessioni alla stessa origine. L’impostazione rifiuta caratteri jolly, percorsi, credenziali e direttive CSP; valori non validi restituiscono 503 prima di eseguire richieste operative. HTTP locale è consentito solo se pagina e archivio usano entrambi `http://127.0.0.1`, per i test isolati sopra descritti.
 
 ### Misurazione locale delle prestazioni utente
+
+Le query multiutente con limiti, i carichi documentali, le osservazioni delle risorse e i profili software/services sono descritti nella [valutazione delle prestazioni](backend/PERFORMANCE_EVALUATION.md). Il flusso esistente `pnpm measure:performance` qui sotto mantiene le misurazioni locali del browser e dell’API.
 
 Avviare prima lo stack isolato seguendo «Avvio locale riproducibile su Windows», quindi eseguire dalla radice:
 

@@ -5,12 +5,13 @@ import path from "node:path";
 import test from "node:test";
 
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
-const markdownFiles = execFileSync("git", ["ls-files", "-co", "--exclude-standard", "--", "*.md"], {
+const repositoryFiles = execFileSync("git", ["ls-files", "-coz", "--exclude-standard"], {
   cwd: repositoryRoot,
   encoding: "utf8",
 })
-  .split(/\r?\n/)
+  .split("\0")
   .filter(Boolean);
+const markdownFiles = repositoryFiles.filter((file) => file.endsWith(".md"));
 
 const localTarget = (rawTarget) => {
   let target = rawTarget.trim();
@@ -44,7 +45,12 @@ test("all Markdown local links resolve inside the repository", () => {
       const target = localTarget(rawTarget);
       if (!target) continue;
       const resolved = path.resolve(repositoryRoot, path.dirname(relativeFile), target);
-      if (!existsSync(resolved)) missing.push(`${relativeFile} -> ${target}`);
+      const relativeTarget = path.relative(repositoryRoot, resolved).split(path.sep).join("/");
+      // Ignored local files must not hide links that break in a clean CI clone.
+      const included = repositoryFiles.some(
+        (file) => file === relativeTarget || file.startsWith(`${relativeTarget}/`),
+      );
+      if (!included || !existsSync(resolved)) missing.push(`${relativeFile} -> ${target}`);
     }
   }
   assert.deepEqual(missing, []);

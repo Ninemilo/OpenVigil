@@ -22,7 +22,7 @@ from windops_backend.outbox import (
     process_outbox_event,
     redelivery_retry_delay_ms,
 )
-from windops_backend.services.document_parse import recoverable_document_parse_events
+from windops_backend.services.document_parse import reserve_document_parse_recoveries
 from windops_backend.services.eam import (
     EAM_WORK_ORDER_PUBLISH_REQUESTED,
     process_eam_publish_event,
@@ -195,7 +195,7 @@ async def relay_pending_once() -> int:
     try:
         event_rows = await pending_events(factory)
         event_rows.extend(await expired_structural_events(factory))
-        event_rows.extend(await recoverable_document_parse_events(factory))
+        event_rows.extend(await reserve_document_parse_recoveries(factory))
         dispatched: list[str] = []
         for event_id, event_type in event_rows:
             if event_type == MISSION_ANALYSIS_REQUESTED:

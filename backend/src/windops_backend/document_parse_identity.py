@@ -16,7 +16,7 @@ DOCUMENT_PARSER_VERSIONS = {
     "torch": "2.14.1+cpu",
     "torchvision": "0.29.1+cpu",
     "pypdfium2": "5.14.0",
-    "pypdf": "6.17.0",
+    "pypdf": "6.19.0",
 }
 EXECUTION_MODULES = (
     "document_parse_compute.py",

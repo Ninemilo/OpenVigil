@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
@@ -105,6 +105,9 @@ function identitySession(capabilities = managerCapabilities, roles = ["operation
   };
 }
 
+// vinext installs its request fetch wrapper on the first request. Initialize it
+// before installing any test transport so restoration cannot discard fixtures.
+await worker.fetch(new Request("https://windops.example/api/runtime"), baseEnvironment, context);
 const platformFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
   if (String(input) === "https://windops-backend.example/api/v1/session") {
@@ -174,6 +177,80 @@ test("knowledge passage and verified source reads have bounded paths and methods
     isAllowedProductionGatewayPath("/api/v1/knowledge/documents/KB-R1/source/extra"),
     false,
   );
+});
+
+test("numeric review gateway exposes only bounded read, proposal and decision methods", () => {
+  const base = "/api/v1/knowledge/passages/12345678-1234-4234-8234-123456789012/numeric-review";
+  assert.equal(isAllowedProductionGatewayRequest("GET", base), true);
+  assert.equal(isAllowedProductionGatewayRequest("POST", base), true);
+  assert.equal(isAllowedProductionGatewayRequest("POST", base + "/decision"), true);
+  for (const method of ["PUT", "PATCH", "DELETE"]) {
+    assert.equal(isAllowedProductionGatewayRequest(method, base), false);
+    assert.equal(isAllowedProductionGatewayRequest(method, base + "/decision"), false);
+  }
+  assert.equal(isAllowedProductionGatewayRequest("GET", base + "/decision"), false);
+  for (const suffix of ["/extra", "/decision/extra", "/history/delete"]) {
+    assert.equal(isAllowedProductionGatewayPath(base + suffix), false);
+  }
+});
+
+test("built gateway delegates numeric review bytes and identity and preserves receipt headers", async () => {
+  const originalFetch = globalThis.fetch;
+  const base = "/knowledge/passages/12345678-1234-4234-8234-123456789012/numeric-review";
+  const observations = [];
+  globalThis.fetch = async (input, init) => {
+    if (String(input) === "https://windops-backend.example/api/v1/session")
+      return backendJson(identitySession());
+    observations.push({ url: String(input), init });
+    return backendJson(
+      { current: { revision: 2, status: "approved" } },
+      {
+        headers: { "idempotency-replayed": "true" },
+      },
+    );
+  };
+  try {
+    for (const [method, suffix] of [
+      ["GET", "?limit=20&cursor=3"],
+      ["POST", ""],
+      ["POST", "/decision"],
+    ]) {
+      const body =
+        method === "POST"
+          ? JSON.stringify({ expected_revision: 1, reason: "对照原件的传输测试" })
+          : undefined;
+      const response = await fetchWorker("/api/backend" + base + suffix, productionEnvironment, {
+        method,
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "numeric-gateway-fixture-key",
+          "oai-authenticated-user-id": "sites-user-42",
+          "oai-authenticated-user-email": "operator@example.com",
+        },
+        ...(body === undefined ? {} : { body }),
+      });
+      assert.equal(response.status, 200, await response.text());
+      assert.equal(response.headers.get("idempotency-replayed"), "true");
+      const observed = observations.at(-1);
+      const headers = new Headers(observed.init.headers);
+      assert.equal(observed.url, "https://windops-backend.example/api/v1" + base + suffix);
+      assert.equal(headers.get("idempotency-key"), "numeric-gateway-fixture-key");
+      const token = headers.get("authorization").slice("Bearer ".length);
+      const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
+      assert.equal(payload.sub, "sites-user-42");
+      assert.equal(payload.method, method);
+      assert.equal(payload.target, "/api/v1" + base + suffix);
+      assert.equal(
+        payload.body_sha256,
+        createHash("sha256")
+          .update(body ?? "")
+          .digest("hex"),
+      );
+      if (body !== undefined) assert.equal(new TextDecoder().decode(observed.init.body), body);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("production knowledge catalog uses parsed source pagination and preserves unknown pages", async () => {

@@ -23,8 +23,15 @@ def test_ephemeral_dependencies_have_no_external_volumes_or_fixed_ports() -> Non
     definition = runner_module().compose_definition("ephemeral-test-password")
     assert set(definition["services"]) == {"postgres", "redis", "minio", "neo4j"}
     assert all(value is None for value in definition["volumes"].values())
-    for service in definition["services"].values():
-        assert "@sha256:" in service["image"]
+    for name, service in definition["services"].items():
+        if name == "minio":
+            assert service["build"] == {
+                "context": str(Path(__file__).resolve().parents[1]),
+                "dockerfile": "deploy/Dockerfile.minio",
+                "target": "minio",
+            }
+        else:
+            assert "@sha256:" in service["image"]
         assert all(port.startswith("127.0.0.1::") for port in service["ports"])
         assert "container_name" not in service
         for mount in service["volumes"]:

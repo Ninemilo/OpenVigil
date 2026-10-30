@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, RefreshCw, X } from "lucide-react";
 
@@ -16,6 +16,12 @@ import {
 } from "@/lib/knowledge-source";
 
 import styles from "./knowledge-base-page.module.css";
+
+const KnowledgeSourceComparison = lazy(() =>
+  import("./knowledge-source-comparison").then((module) => ({
+    default: module.KnowledgeSourceComparison,
+  })),
+);
 
 interface PassagePage {
   readonly passages: readonly NativeKnowledgePassage[];
@@ -120,6 +126,9 @@ export function KnowledgeSourceViewer({
   readonly ingestionStatus?: string;
   readonly requiresNumericReview?: boolean;
 }) {
+  const [comparison, setComparison] = useState<{ documentId: string; passageId: string } | null>(
+    null,
+  );
   const query = useInfiniteQuery({
     queryKey: ["native-knowledge-passages", documentId],
     initialPageParam: null as number | null,
@@ -190,66 +199,98 @@ export function KnowledgeSourceViewer({
             : "暂无段落索引。历史正文没有可验证的文件位置。"}
         </p>
       ) : null}
-      <SourceDownloadButton documentId={documentId} />
-      {passages.map((passage) => (
-        <article
-          key={passage.passage_id}
-          className={`${styles.previewPage} ${passage.passage_id === citedPassageId ? styles.citedPassage : ""}`}
-        >
-          <span>
-            {knowledgeSourceLocation(passage)}
-            {passage.passage_id === citedPassageId ? " · 当前引用" : ""}
-          </span>
-          <h3>{passage.section ?? "原文段落"}</h3>
-          <p className={styles.passageText}>{passage.text}</p>
-          {passage.native_locator.requires_numeric_review === true ? (
-            <small className={styles.sourceNote}>解析摘录 · 数值与单位需人工核对</small>
-          ) : null}
-          {knowledgePageRegions(passage).map((region, index) => (
-            <figure key={index} aria-label={`第 ${region.pageNumber} 页内引用区域`}>
-              <svg
-                role="img"
-                aria-label="页面区域示意"
-                viewBox={`0 0 ${region.width} ${region.height}`}
-                width="80"
-                height="104"
+      <SourceDownloadButton key={documentId} documentId={documentId} />
+      {passages.map((passage) => {
+        const expanded =
+          comparison?.documentId === documentId && comparison.passageId === passage.passage_id;
+        return (
+          <article
+            key={passage.passage_id}
+            className={`${styles.previewPage} ${passage.passage_id === citedPassageId ? styles.citedPassage : ""}`}
+          >
+            <span>
+              {knowledgeSourceLocation(passage)}
+              {passage.passage_id === citedPassageId ? " · 当前引用" : ""}
+            </span>
+            <h3>{passage.section ?? "原文段落"}</h3>
+            <p className={styles.passageText}>{passage.text}</p>
+            {passage.native_locator.requires_numeric_review === true ? (
+              <small className={styles.sourceNote}>解析摘录 · 数值与单位需人工核对</small>
+            ) : null}
+            {knowledgePageRegions(passage).map((region, index) => (
+              <figure key={index} aria-label={`第 ${region.pageNumber} 页内引用区域`}>
+                <svg
+                  role="img"
+                  aria-label="页面区域示意"
+                  viewBox={`0 0 ${region.width} ${region.height}`}
+                  width="80"
+                  height="104"
+                >
+                  <rect
+                    x="0"
+                    y="0"
+                    width={region.width}
+                    height={region.height}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  />
+                  <rect
+                    x={region.bbox[0]}
+                    y={region.bbox[1]}
+                    width={region.bbox[2] - region.bbox[0]}
+                    height={region.bbox[3] - region.bbox[1]}
+                    fill="currentColor"
+                    fillOpacity="0.25"
+                  />
+                </svg>
+                <figcaption className={styles.sourceNote}>
+                  {passage.native_locator.location_precision === "table_region"
+                    ? "表格区域"
+                    : "引用区域"}{" "}
+                  · PDF 页面点坐标 (
+                  {region.bbox.map((coordinate) => coordinate.toFixed(1)).join(", ")})
+                </figcaption>
+              </figure>
+            ))}
+            <small className={styles.sourceNote}>
+              {passage.document_version} ·{" "}
+              {passage.source_sha256
+                ? `文件 SHA-256 ${passage.source_sha256.slice(0, 12)}…`
+                : "历史正文，文件位置未经验证"}
+            </small>
+            <SourceDownloadButton
+              key={`${documentId}:${passage.passage_id}:${passage.document_version}:${passage.source_sha256}`}
+              documentId={documentId}
+              passageId={passage.passage_id}
+            />
+            {passage.source_sha256 ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-expanded={expanded}
+                onClick={() =>
+                  setComparison((current) =>
+                    current?.documentId === documentId && current.passageId === passage.passage_id
+                      ? null
+                      : { documentId, passageId: passage.passage_id },
+                  )
+                }
               >
-                <rect
-                  x="0"
-                  y="0"
-                  width={region.width}
-                  height={region.height}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
+                {expanded ? "收起原件对照" : "对照原件"}
+              </Button>
+            ) : null}
+            {expanded ? (
+              <Suspense fallback={<p role="status">正在加载原件对照…</p>}>
+                <KnowledgeSourceComparison
+                  key={`${documentId}:${passage.passage_id}:${passage.document_version}:${passage.source_sha256}:${passage.text_sha256}`}
+                  passage={passage}
                 />
-                <rect
-                  x={region.bbox[0]}
-                  y={region.bbox[1]}
-                  width={region.bbox[2] - region.bbox[0]}
-                  height={region.bbox[3] - region.bbox[1]}
-                  fill="currentColor"
-                  fillOpacity="0.25"
-                />
-              </svg>
-              <figcaption className={styles.sourceNote}>
-                {passage.native_locator.location_precision === "table_region"
-                  ? "表格区域"
-                  : "引用区域"}{" "}
-                · PDF 页面点坐标 (
-                {region.bbox.map((coordinate) => coordinate.toFixed(1)).join(", ")})
-              </figcaption>
-            </figure>
-          ))}
-          <small className={styles.sourceNote}>
-            {passage.document_version} ·{" "}
-            {passage.source_sha256
-              ? `文件 SHA-256 ${passage.source_sha256.slice(0, 12)}…`
-              : "历史正文，文件位置未经验证"}
-          </small>
-          <SourceDownloadButton documentId={documentId} passageId={passage.passage_id} />
-        </article>
-      ))}
+              </Suspense>
+            ) : null}
+          </article>
+        );
+      })}
       {query.hasNextPage ? (
         <Button
           size="sm"

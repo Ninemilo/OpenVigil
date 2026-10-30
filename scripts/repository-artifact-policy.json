@@ -10,7 +10,17 @@
     "tmp/",
     "docs/"
   ],
-  "forbiddenPathAllowlist": [],
+  "forbiddenPathAllowlist": [
+    "docs/demo-gap-audit.md",
+    "docs/improvement-execution-2026-10-23.md",
+    "docs/production-deployment.md",
+    "docs/project-improvement-recommendations-2026-10-23.md",
+    "docs/runbooks/collection-performance.md",
+    "docs/runbooks/delegated-replay-and-command-idempotency.md",
+    "docs/runbooks/incident-response.md",
+    "docs/runbooks/postgresql-migration-recovery.md",
+    "docs/runbooks/release-acceptance.md"
+  ],
   "forbiddenSegments": ["/node_modules/", "/__pycache__/", "/.pytest_cache/"],
   "largeArtifactAllowlist": []
 }

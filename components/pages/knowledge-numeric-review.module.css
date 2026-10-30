@@ -1,0 +1,227 @@
+/* finesse · component: knowledge-numeric-review · register=product
+ * states: default · hover · focus-visible · active · disabled · loading · error · success
+ * tokens: inherited (app/styles/01-foundations.css and shared Button) */
+.review {
+  min-width: 0;
+  margin-top: 12px;
+  color: var(--foreground);
+  font-size: var(--font-body);
+}
+.panel {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.header,
+.actions,
+.choices {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+.header h3 {
+  margin: 0;
+  font-size: var(--font-body);
+}
+.header {
+  justify-content: space-between;
+}
+.control {
+  min-height: 44px;
+  white-space: nowrap;
+}
+.review button:disabled,
+.review fieldset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.status {
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  font-weight: 600;
+}
+.status[data-status="approved"] {
+  color: var(--success);
+  background: var(--success-soft);
+}
+.status[data-status="pending"] {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+.status[data-status="rejected"] {
+  color: var(--critical);
+  background: var(--critical-soft);
+}
+.boundary,
+.hint {
+  color: var(--foreground-muted);
+  line-height: 1.6;
+  font-size: var(--font-secondary);
+}
+.metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.metadata dt,
+.hashes dt {
+  color: var(--foreground-muted);
+  font-size: var(--font-secondary);
+}
+.metadata dd,
+.hashes dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.form,
+.correction {
+  min-width: 0;
+  margin: 16px 0 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.form legend,
+.correction legend {
+  padding: 0 5px;
+  font-weight: 600;
+}
+.choices label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 6px;
+  cursor: pointer;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 12px 0;
+  font-weight: 500;
+}
+.field input,
+.field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px;
+  color: var(--foreground);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  line-height: 1.6;
+}
+.field textarea {
+  resize: vertical;
+}
+.field input[readonly],
+.field textarea[readonly] {
+  background: var(--surface-subtle);
+}
+.review input:focus-visible,
+.review textarea:focus-visible,
+.review summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+.review summary {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 12px 0;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.review summary:active {
+  color: var(--primary-strong);
+}
+@media (hover: hover) {
+  .review summary:hover {
+    color: var(--primary);
+  }
+  .field input:hover,
+  .field textarea:hover {
+    border-color: var(--primary);
+  }
+}
+.review pre {
+  max-height: 320px;
+  overflow: auto;
+  margin: 8px 0;
+  padding: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--surface-subtle);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  line-height: 1.7;
+}
+.record,
+.preview,
+.frozen {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.record h4,
+.preview h4 {
+  margin: 0 0 8px;
+  font-size: var(--font-body);
+}
+.error {
+  min-height: 1lh;
+  margin: 12px 0;
+  padding: 10px;
+  color: var(--critical);
+  background: var(--critical-soft);
+  border-radius: var(--radius-sm);
+  line-height: 1.6;
+}
+.frozen {
+  background: var(--warning-soft);
+}
+.hash,
+.hashes {
+  overflow-wrap: anywhere;
+  font-size: var(--font-secondary);
+}
+.history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.history > li {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.history p {
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 520px) {
+  .panel {
+    padding: 10px;
+  }
+  .metadata,
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .form,
+  .correction {
+    padding: 10px;
+  }
+}

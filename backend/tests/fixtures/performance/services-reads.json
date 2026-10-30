@@ -1,0 +1,38 @@
+{
+  "schema_version": "openvigil.load-profile.v1",
+  "mode": "services",
+  "concurrency": 4,
+  "requests_per_route": 100,
+  "maximum_requests": 3000,
+  "maximum_duration_seconds": 180,
+  "request_timeout_seconds": 20,
+  "warmup_requests": 4,
+  "schedule": "closed_loop",
+  "history_rows": 9000,
+  "documents": 0,
+  "maximum_upload_bytes": 0,
+  "profile_id": "services-reads-v1",
+  "workloads": ["queries", "history"],
+  "budgets": [
+    {
+      "workload": "queries",
+      "p95_ms": 500,
+      "p99_ms": 1000,
+      "maximum_error_rate": 0,
+      "maximum_response_bytes": 1048576,
+      "maximum_process_rss_bytes": 4294967296,
+      "maximum_total_rss_bytes": 8589934592,
+      "measurement_only": true
+    },
+    {
+      "workload": "history",
+      "p95_ms": 2000,
+      "p99_ms": 5000,
+      "maximum_error_rate": 0,
+      "maximum_response_bytes": 1048576,
+      "maximum_process_rss_bytes": 4294967296,
+      "maximum_total_rss_bytes": 8589934592,
+      "measurement_only": true
+    }
+  ]
+}

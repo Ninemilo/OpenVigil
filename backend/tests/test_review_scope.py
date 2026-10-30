@@ -1,3 +1,5 @@
+import hashlib
+import json
 import sys
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
@@ -309,7 +311,26 @@ async def test_workflow_persists_plan_scoped_reviews_and_operation_restrictions(
     }
     assert supplied["execution_plan"]["execution_plan_id"] == target["execution_plan_id"]
     assert len(supplied["execution_plan"]["plan"]["tasks"]) == 5
-    assert supplied["evidence"] == detail["public_state"]["evidence"]
+    stored_evidence = detail["public_state"]["evidence"]
+    expected_evidence = deepcopy(stored_evidence)
+    knowledge = next(
+        item for item in expected_evidence if item["evidence_type"] == "knowledge_citation"
+    )
+    encoded_snapshot = knowledge["metrics"].pop("retrieval_context_json")
+    snapshot_sha256 = knowledge["metrics"]["retrieval_context_sha256"]
+    assert hashlib.sha256(encoded_snapshot.encode("utf-8")).hexdigest() == snapshot_sha256
+    assert supplied["evidence"] == expected_evidence
+    assert supplied["retrieved_knowledge"] == [
+        {
+            "evidence_id": knowledge["evidence_id"],
+            "snapshot_sha256": snapshot_sha256,
+            **json.loads(encoded_snapshot),
+        }
+    ]
+    stored_knowledge = next(
+        item for item in stored_evidence if item["evidence_id"] == knowledge["evidence_id"]
+    )
+    assert stored_knowledge["metrics"]["retrieval_context_json"] == encoded_snapshot
     reviews = detail["public_state"]["reviews"]
     assert {review["reviewer_agent"] for review in reviews} == {"review_committee"}
     assert detail["public_state"]["review_target"] == target

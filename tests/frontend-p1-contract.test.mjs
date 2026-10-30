@@ -16,6 +16,15 @@ import {
 } from "../lib/client-workflow-overlays.ts";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const missionCenterSource = () =>
+  Promise.all(
+    [
+      "mission-center-page.tsx",
+      "mission-center-views.tsx",
+      "mission-center-support.ts",
+      "mission-create-drawer.tsx",
+    ].map((filename) => source(`components/pages/${filename}`)),
+  ).then((parts) => parts.join("\n"));
 
 test("workflow overlay closes alarms and derives KPI and Agent state from one snapshot", () => {
   const completed = {
@@ -93,8 +102,12 @@ test("command intent, scoped pages, honest controls and accessible drawers are s
     dataTable,
     dialogHook,
   ] = await Promise.all([
-    source("components/layout/app-shell.tsx"),
-    source("components/pages/mission-center-page.tsx"),
+    Promise.all([
+      source("components/layout/app-shell.tsx"),
+      source("components/layout/app-shell-search.tsx"),
+      source("components/layout/app-shell-notifications.tsx"),
+    ]).then((parts) => parts.join("\n")),
+    missionCenterSource(),
     Promise.all([
       source("components/pages/work-order-page.tsx"),
       source("components/pages/work-order-drawer.tsx"),
@@ -189,7 +202,7 @@ test("production branches never render fixture drawer, approval, summary, or dia
       source("components/pages/alarm-center-support.tsx"),
     ]).then((parts) => parts.join("\n")),
     source("components/pages/decision-center-page.tsx"),
-    source("components/pages/mission-center-page.tsx"),
+    missionCenterSource(),
     Promise.all([
       source("components/pages/diagnosis-center-page.tsx"),
       source("components/pages/use-diagnosis-center.ts"),

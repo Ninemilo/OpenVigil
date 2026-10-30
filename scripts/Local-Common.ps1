@@ -32,12 +32,23 @@ function Get-OwnedProcess($Record) {
     $created = $process.CreationDate.ToUniversalTime().Ticks
     # PowerShell 7 can deserialize ISO JSON dates as DateTime; compare instants,
     # not culture-dependent string conversions after a manager restart.
-    if ($created -ne ([DateTimeOffset]$Record.created).UtcDateTime.Ticks -or $process.CommandLine -ne $Record.command -or
-        $process.ExecutablePath -ne $Record.executable -or
-        -not $process.CommandLine.Contains($script:LocalRoot)) {
-        throw "Refusing process $($Record.pid): PID identity or checkout ownership differs."
+    if ($created -ne ([DateTimeOffset]$Record.created).UtcDateTime.Ticks) {
+        throw "Refusing process $($Record.pid): creation time differs."
+    }
+    if ($process.CommandLine -ne $Record.command -or $process.ExecutablePath -ne $Record.executable) {
+        throw "Refusing process $($Record.pid): command or executable differs."
+    }
+    if (-not (Test-LocalCheckoutCommand $process.CommandLine)) {
+        throw "Refusing process $($Record.pid): checkout ownership differs."
     }
     return $process
+}
+
+function Test-LocalCheckoutCommand([string]$Command) {
+    # Windows paths are case-insensitive and accept both separators. Require a
+    # directory boundary so a sibling such as OpenVigil-other is never owned.
+    $rootPrefix = $script:LocalRoot.Replace('/', '\').TrimEnd('\') + '\'
+    return $Command.Replace('/', '\').IndexOf($rootPrefix, [StringComparison]::OrdinalIgnoreCase) -ge 0
 }
 
 function Stop-OwnedProcess($Record) {

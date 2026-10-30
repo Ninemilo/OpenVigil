@@ -50,6 +50,7 @@ const allowedGatewayPaths = [
   /^\/api\/v1\/knowledge\/(?:documents(?:\/uploads\/presign|\/[^/]+)?|cases)$/,
   /^\/api\/v1\/knowledge\/documents\/[A-Za-z0-9._-]+\/(?:passages|source)$/,
   /^\/api\/v1\/knowledge\/passages\/[A-Za-z0-9-]{36}$/,
+  /^\/api\/v1\/knowledge\/passages\/[A-Za-z0-9-]{36}\/numeric-review(?:\/decision)?$/,
   /^\/api\/v1\/knowledge\/parser-capabilities$/,
   /^\/api\/v1\/models(?:\/uploads\/presign|\/deployments\/[^/]+\/activate|\/[^/]+(?:\/deployments|\/rollback)?)?$/,
   /^\/api\/v1\/models\/deployments\/[A-Za-z0-9][A-Za-z0-9._-]{2,63}\/anomaly-predictions\/run$/,
@@ -402,6 +403,14 @@ export function isAllowedProductionGatewayPath(path: string): boolean {
 
 export function isAllowedProductionGatewayRequest(method: string, path: string): boolean {
   if (!isAllowedProductionGatewayPath(path)) return false;
+  const numericReview = path.match(
+    /^\/api\/v1\/knowledge\/passages\/[A-Za-z0-9-]{36}\/numeric-review(\/decision)?$/,
+  );
+  if (numericReview) {
+    return numericReview[1]
+      ? method.toUpperCase() === "POST"
+      : ["GET", "POST"].includes(method.toUpperCase());
+  }
   const structuralMethods: readonly [RegExp, readonly string[]][] = [
     [/^\/api\/v1\/engineering-claims$/, ["POST"]],
     [/^\/api\/v1\/structural-missions$/, ["POST"]],

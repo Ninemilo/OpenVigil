@@ -40,6 +40,10 @@
 
 Das Produkt ist als intelligente Plattform für die Betriebsführung und Instandhaltung von Windenergieanlagen positioniert. Die Bilder auf der Anmeldeseite und der Demo-Windpark veranschaulichen ein Szenario; sie definieren weder den Produktumfang noch belegen sie eine Anbindung vor Ort oder eine Produktionsabnahme.
 
+Aktueller Versionsstand, offene Aufgaben, Blockaden und Prüfpfade: [aktueller Status](CURRENT_STATUS.md).
+
+**Historischer Abnahmestand (2026-10-07/08).** Der folgende Absatz dokumentiert die damalige Repository-Prüfung und die Abnahmegrenzen.
+
 Diese Dokumentation wurde am **2026-10-08** mit dem Repository abgeglichen. Der aktuelle Softwareumfang priorisiert **Onshore-Hybridtürme** zusätzlich zum bestehenden Anlagenbetrieb. Strukturüberwachung, geregelte Nachmessungen und die unabhängige PDF/OCR-Wissensaufnahme sind implementiert. Die jüngste Parser-Abnahme vom 2026-10-07 ist `COMPLETE_LOCAL_SOFTWARE_VERIFIED` und umfasst lokale Software sowie isolierte Linux-Ausführung. Feldgenauigkeit, reale Kalibrierung und Verfahren, Schattenbetrieb und formale Release-Qualifikation bleiben `UNVERIFIED`. Der [Ausführungsstand](EXECUTION_PROGRESS.md) trennt aktuelle Ergebnisse von historischen Snapshots.
 
 ## Installation
@@ -99,7 +103,7 @@ alembic upgrade head
 windops-reference-import --reference-pack wt023
 ```
 
-Der derzeit einzige Migrations-Head lautet `0032_structural_workflow`. Führen Sie in `backend/` den Befehl `python scripts/verify_migration_head.py` aus, um den Migrationsgraphen und die dokumentierten Angaben zu prüfen.
+Der derzeit einzige Migrations-Head lautet `0033_knowledge_numeric_review`. Führen Sie in `backend/` den Befehl `python scripts/verify_migration_head.py` aus, um den Migrationsgraphen und die dokumentierten Angaben zu prüfen.
 
 Der Referenzimport fragt nach dem Schlüssel für `operations_manager`. Starten Sie anschließend das Outbox-Relay, den Dramatiq-Worker, den Read-Audit-Worker und die API in vier separaten Terminals:
 
@@ -408,6 +412,8 @@ Beobachtungen und Referenzmaterial sind synthetisch. Diagnose und Embeddings ver
 Konfigurieren Sie für direkte Browser-Uploads im Worker `WINDOPS_ARTIFACT_UPLOAD_ORIGINS` mit den exakten, durch Kommas getrennten HTTPS-Origins der vom Backend ausgegebenen Upload-URLs. Erlauben Sie im Objektspeicher PUT/CORS vom Anwendungs-Origin. Die Standard-CSP erlaubt nur Verbindungen zum selben Origin. Die Einstellung weist Wildcards, Pfade, Zugangsdaten und CSP-Direktiven zurück; ungültige Werte liefern vor der Ausführung von Geschäftsanfragen 503. Lokales HTTP ist für die obigen isolierten Tests nur erlaubt, wenn Seite und Speicher beide `http://127.0.0.1` verwenden.
 
 ### Lokale Messung der Nutzerperformance
+
+Begrenzte Mehrbenutzerabfragen, Dokumentlasten, Ressourcenmessungen und die Profile software/services sind in der [Leistungsbewertung](backend/PERFORMANCE_EVALUATION.md) beschrieben. Der bestehende Ablauf mit `pnpm measure:performance` unten behält seine lokalen Browser-/API-Messungen bei.
 
 Starten Sie zuerst die isolierte Umgebung gemäß „Wiederholbarer lokaler Start unter Windows“ und führen Sie dann im Repository-Stamm aus:
 

@@ -41,6 +41,11 @@ def test_prepare_is_repeatable_and_preserves_user_config_and_credentials(checkou
     compose_text = (folder / "compose.json").read_text()
     assert values["LOCAL_POSTGRES_PASSWORD"] not in compose_text
     compose = json.loads(compose_text)
+    for name in ("minio", "minio-init"):
+        assert (
+            Path(compose["services"][name]["build"]["context"]).resolve()
+            == (checkout / "backend").resolve()
+        )
     for service in compose["services"].values():
         assert all(port.startswith("127.0.0.1:") for port in service.get("ports", []))
     assert len(compose["volumes"]) == 4

@@ -1,6 +1,6 @@
 """Governed output contracts shared by provider orchestration and structural policy."""
 
-from typing import Any
+from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -53,3 +53,20 @@ def _review_target(public_context: dict[str, Any]) -> MaintenanceReviewTarget:
         return MaintenanceReviewTarget.model_validate(public_context.get("review_target"))
     except ValueError as exc:
         raise ReasoningEvaluationError("a governed maintenance review target is required") from exc
+
+
+SchemaT = TypeVar("SchemaT", bound=BaseModel)
+
+
+class ReasoningProviderUnavailableError(RuntimeError):
+    pass
+
+
+class PublicReasoningProvider(Protocol):
+    async def generate(
+        self, schema: type[SchemaT], instruction: str, public_context: dict[str, Any]
+    ) -> SchemaT: ...
+
+    def reset_usage(self) -> None: ...
+
+    def consume_usage(self) -> dict[str, Any]: ...

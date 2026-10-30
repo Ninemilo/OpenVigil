@@ -1,6 +1,6 @@
 # OpenVigil Technical Audit Report
 
-> 历史审计说明（2026-09-27）：下文保留 2026-09-04 的发现、整改和验收记录，不直接表示当前仍有同名缺陷或本轮已通过验收。当前七项改进范围见 `EXECUTION_GOAL.md`，唯一活动状态见 `EXECUTION_PROGRESS.md` 顶部 2026-09-27 区域；生产发布仍需当前版本的真实外部证据。
+> 历史审计说明（入口更新于 2026-10-24）：下文保留 2026-09-04 的发现、整改和验收记录，不直接表示当前仍有同名缺陷或本轮已通过验收。简短索引见 [当前状态](CURRENT_STATUS.md)，当前目标见 [EXECUTION_GOAL.md](EXECUTION_GOAL.md)，唯一活动状态见 [EXECUTION_PROGRESS.md](EXECUTION_PROGRESS.md) 顶部；本轮任务原文为 [项目改进建议](docs/project-improvement-recommendations-2026-10-23.md)。生产发布仍需当前版本的真实外部证据。
 
 本报告只记录产品落地背后的技术实现、架构、数据、API、安全、并发、性能、测试和发布问题。纯视觉或交互问题以 `UI_AUDIT_REPORT.md` 为主；跨层问题通过 `Related UI Issue` / `Related Technical Issue` 双向引用。
 

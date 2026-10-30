@@ -7,6 +7,15 @@ from typing import Any, cast
 
 import yaml  # type: ignore[import-untyped]
 
+from windops_backend.operations.document_identity import (
+    DOCUMENT_ANNOTATIONS,
+    DOCUMENT_ENV,
+    DOCUMENT_MODELS_CLAIM,
+    DOCUMENT_RUNTIME_CONFIG,
+    DOCUMENT_WORKLOAD,
+    document_bundle_id,
+    document_models_claim,
+)
 from windops_backend.operations.hybrid_identity import (
     HYBRID_ANNOTATIONS,
     HYBRID_ENV,
@@ -73,6 +82,8 @@ def render_release_manifests(
     commit_sha: str,
     image: str,
     structural_image: str | None = None,
+    document_image: str | None = None,
+    model_manifest_sha256: str | None = None,
 ) -> list[dict[str, Any]]:
     image_digest = _validate_release(release_id, commit_sha, image)
     release = {
@@ -96,6 +107,44 @@ def render_release_manifests(
         )
         annotations.update(HYBRID_ANNOTATIONS)
         variables.update(HYBRID_ENV)
+    document_digest = None
+    if document_image is not None:
+        if structural_digest is None or model_manifest_sha256 is None:
+            raise ValueError("document release requires structural image and model manifest")
+        document_digest = _validate_release(release_id, commit_sha, document_image)
+        release.update(
+            {
+                "document_image_digest": document_digest,
+                "model_manifest_sha256": model_manifest_sha256,
+                "document_bundle_id": document_bundle_id(
+                    release_id,
+                    commit_sha,
+                    image_digest,
+                    structural_digest,
+                    document_digest,
+                    model_manifest_sha256,
+                ),
+            }
+        )
+        annotations.update(DOCUMENT_ANNOTATIONS)
+        variables.update(DOCUMENT_ENV)
+        claim_name = document_models_claim(model_manifest_sha256)
+        claims = [
+            item
+            for item in documents
+            if item.get("kind") == "PersistentVolumeClaim"
+            and item.get("metadata", {}).get("name") == DOCUMENT_MODELS_CLAIM
+        ]
+        if len(claims) != 1:
+            raise ValueError("document release requires exactly one models volume claim")
+        claim = claims[0]
+        claim["metadata"]["name"] = claim_name
+        claim["metadata"].setdefault("annotations", {})[
+            DOCUMENT_ANNOTATIONS["model_manifest_sha256"]
+        ] = model_manifest_sha256
+        claim["spec"]["volumeName"] = claim_name
+    elif model_manifest_sha256 is not None:
+        raise ValueError("model manifest requires its document image")
     observed: set[str] = set()
     for document in documents:
         if document.get("kind") not in WORKLOAD_KINDS:
@@ -107,23 +156,35 @@ def render_release_manifests(
         observed.add(name)
         if name == STRUCTURAL_WORKLOAD and structural_image is None:
             raise ValueError("structural workload requires its own immutable image")
-        workload_release = (
-            {**release, "image_digest": structural_digest}
-            if name == STRUCTURAL_WORKLOAD
-            else release
-        )
+        if name == DOCUMENT_WORKLOAD and document_image is None:
+            raise ValueError("document workload requires its own immutable image")
+        workload_image, workload_digest = image, image_digest
+        if name == STRUCTURAL_WORKLOAD:
+            workload_image, workload_digest = (
+                cast(str, structural_image),
+                cast(str, structural_digest),
+            )
+        elif name == DOCUMENT_WORKLOAD:
+            workload_image, workload_digest = cast(str, document_image), cast(str, document_digest)
+        workload_release = {**release, "image_digest": workload_digest}
         template = _pod_template(document)
         template_metadata = cast(dict[str, Any], template.setdefault("metadata", {}))
         for target_metadata in (metadata, template_metadata):
             target_annotations = cast(dict[str, str], target_metadata.setdefault("annotations", {}))
             for field, annotation in annotations.items():
-                target_annotations[annotation] = cast(str, workload_release[field])
+                target_annotations[annotation] = workload_release[field]
         pod_spec = cast(dict[str, Any], template["spec"])
+        if name == DOCUMENT_WORKLOAD and model_manifest_sha256 is not None:
+            for volume in pod_spec.get("volumes", []):
+                if volume.get("name") == "models":
+                    volume["persistentVolumeClaim"]["claimName"] = document_models_claim(
+                        model_manifest_sha256
+                    )
         containers = cast(list[dict[str, Any]], pod_spec.get("containers"))
         if not containers:
             raise ValueError(f"{name} must contain at least one container")
         for container in [*containers, *pod_spec.get("initContainers", [])]:
-            container["image"] = structural_image if name == STRUCTURAL_WORKLOAD else image
+            container["image"] = workload_image
             env = cast(list[dict[str, str]], container.setdefault("env", []))
             existing = [item.get("name") for item in env]
             if len(existing) != len(set(existing)):
@@ -132,16 +193,24 @@ def render_release_manifests(
                 matching = [item for item in env if item.get("name") == variable]
                 if matching:
                     matching[0].clear()
-                    matching[0].update(
-                        {"name": variable, "value": cast(str, workload_release[field])}
-                    )
+                    matching[0].update({"name": variable, "value": workload_release[field]})
                 else:
-                    env.append({"name": variable, "value": cast(str, workload_release[field])})
+                    env.append({"name": variable, "value": workload_release[field]})
+            if document_image is not None:
+                for variable, value in DOCUMENT_RUNTIME_CONFIG.items():
+                    matches = [item for item in env if item.get("name") == variable]
+                    if matches:
+                        matches[0].clear()
+                        matches[0].update({"name": variable, "value": value})
+                    else:
+                        env.append({"name": variable, "value": value})
     missing = REQUIRED_WORKLOADS - observed
     if missing:
         raise ValueError(f"required release workloads are missing: {', '.join(sorted(missing))}")
     if structural_image is not None and STRUCTURAL_WORKLOAD not in observed:
         raise ValueError("hybrid release requires the structural workload")
+    if document_image is not None and DOCUMENT_WORKLOAD not in observed:
+        raise ValueError("document release requires the document workload")
     return documents
 
 
@@ -155,6 +224,8 @@ def main() -> int:
     parser.add_argument("--commit-sha", required=True)
     parser.add_argument("--image", required=True)
     parser.add_argument("--structural-image")
+    parser.add_argument("--document-image")
+    parser.add_argument("--model-manifest-sha256")
     args = parser.parse_args()
     loaded = [
         cast(dict[str, Any], document)
@@ -167,6 +238,8 @@ def main() -> int:
         commit_sha=args.commit_sha,
         image=args.image,
         structural_image=args.structural_image,
+        document_image=args.document_image,
+        model_manifest_sha256=args.model_manifest_sha256,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

@@ -20,7 +20,7 @@ SCHEMA_MODULES = (
 )
 SOURCE_ROOT = Path(__file__).parents[1] / "src" / "windops_backend"
 # Plan/review bindings retained; unknown deterioration probability is now nullable.
-SCHEMA_JSON_SHA256 = "6457374415b4897b6f8155099aeb09ce8420e4605d04ebeab6dd38c371f181cf"
+SCHEMA_JSON_SHA256 = "be49aaff399c28a9e01563289dee6f67a5f08af01c06d89eb931487ab799b1e3"
 STRUCTURAL_PLAN_AFFECTED_SCHEMAS = {
     "WorkOrderPlan",
     "MissionAnalysisProfile",
@@ -56,6 +56,17 @@ def test_schema_facade_preserves_public_model_identity_and_json_schema() -> None
         separators=(",", ":"),
     ).encode()
     assert hashlib.sha256(canonical).hexdigest() == SCHEMA_JSON_SHA256
+    # The approved parser selector is optional and defaults to the v1 native
+    # behavior. Freeze its exact extension, then prove all legacy schema bytes
+    # still match the original baseline after projecting out that one field.
+    create_schema = payload["KnowledgeDocumentCreateRequest"]
+    assert "parser" not in create_schema["required"]
+    assert create_schema["properties"].pop("parser") == {
+        "default": "native",
+        "enum": ["native", "docling"],
+        "title": "Parser",
+        "type": "string",
+    }
     untouched = {
         name: value
         for name, value in payload.items()

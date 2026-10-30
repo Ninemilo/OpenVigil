@@ -40,6 +40,10 @@
 
 이 제품은 풍력 운영·유지보수를 위한 지능형 플랫폼으로 자리매김합니다. 로그인 이미지와 Demo 풍력단지는 시나리오의 예시이며, 제품 범위를 정의하거나 현장 연동 또는 프로덕션 인수를 입증하지 않습니다.
 
+현재 버전, 미완료 항목, 차단 조건과 검증 진입점은 [현재 상태](CURRENT_STATUS.md)를 참고하세요.
+
+**과거 검증 스냅샷(2026-10-07/08).** 다음 문단은 당시 저장소 확인 결과와 검증 범위를 기록합니다.
+
 이 문서는 **2026-10-08** 현재 저장소와 대조했습니다. 기존 풍력 터빈 정비 흐름에 더해 **육상 하이브리드 타워**를 우선합니다. 구조 모니터링, 통제된 재측정 흐름과 독립 PDF/OCR 지식 수집이 구현되어 있습니다. 2026-10-07의 최신 파서 검증은 `COMPLETE_LOCAL_SOFTWARE_VERIFIED`이며 로컬 소프트웨어와 격리 Linux 실행을 대상으로 합니다. 현장 정확도, 실제 교정·절차, 섀도 운영, 공식 릴리스 자격은 `UNVERIFIED`입니다. [실행 진행 상황](EXECUTION_PROGRESS.md)은 현재 결론과 과거 기록을 구분합니다.
 
 ## 설치
@@ -99,7 +103,7 @@ alembic upgrade head
 windops-reference-import --reference-pack wt023
 ```
 
-현재 유일한 마이그레이션 head는 `0032_structural_workflow`입니다. `backend/`에서 `python scripts/verify_migration_head.py`를 실행하면 마이그레이션 그래프와 문서의 선언을 확인할 수 있습니다.
+현재 유일한 마이그레이션 head는 `0033_knowledge_numeric_review`입니다. `backend/`에서 `python scripts/verify_migration_head.py`를 실행하면 마이그레이션 그래프와 문서의 선언을 확인할 수 있습니다.
 
 참조 데이터 가져오기는 `operations_manager` 키를 요청합니다. 이후 outbox 릴레이, Dramatiq 워커, 읽기 감사 워커와 API를 각각 별도의 터미널 4개에서 시작합니다.
 
@@ -408,6 +412,8 @@ pnpm test:e2e:business
 브라우저에서 직접 업로드하려면 백엔드가 발급한 업로드 URL의 정확한 HTTPS 오리진을 쉼표로 구분하여 Worker의 `WINDOPS_ARTIFACT_UPLOAD_ORIGINS`에 설정하고, 오브젝트 스토리지에서 애플리케이션 오리진의 PUT/CORS를 허용하세요. 기본 CSP는 동일 오리진 연결만 허용합니다. 이 설정은 와일드카드, 경로, 자격 증명과 CSP 지시어를 거부하며 잘못된 값은 업무 요청 실행 전에 503을 반환합니다. 위 격리 테스트에서는 페이지와 스토리지가 모두 `http://127.0.0.1`을 사용할 때만 로컬 HTTP를 허용합니다.
 
 ### 로컬 사용자 성능 측정
+
+상한이 정해진 다중 사용자 쿼리, 문서 부하, 리소스 관측과 software/services 프로필은 [성능 평가 안내](backend/PERFORMANCE_EVALUATION.md)를 참고하세요. 아래 기존 `pnpm measure:performance` 흐름은 원래의 로컬 브라우저/API 측정 동작을 유지합니다.
 
 먼저 “Windows에서 재현 가능한 로컬 시작”에 따라 격리 스택을 시작한 뒤 저장소 루트에서 실행합니다.
 

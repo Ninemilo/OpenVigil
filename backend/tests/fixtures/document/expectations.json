@@ -1,0 +1,9 @@
+{
+  "schema_version": "openvigil.document-smoke.v1",
+  "fixture_sha256": "b8e73740f572bad7f428ccf90279dfc91016e461d29a24059c9699f5ce19617c",
+  "source_page_count": 2,
+  "passage_count": 15,
+  "table_cell_count": 9,
+  "passage_pages": [2],
+  "required_text": ["混塔预应力复测记录", "+123.45 kN", "-0.25 mm", "WT-023", "118.20"]
+}

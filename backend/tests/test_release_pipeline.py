@@ -228,6 +228,37 @@ def test_release_workflow_is_protected_pinned_and_complete() -> None:
     assert not re.search(r"uses:\s*[^\s]+@(main|master|v\d+)(?:\s|$)", source)
 
 
+def test_real_cross_layer_uses_one_frozen_environment_for_migrations_seed_and_server() -> None:
+    workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["real-cross-layer-e2e"]["steps"]
+    install_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Install frontend and backend dependencies"
+    )
+    install = steps[install_index]["run"]
+    assert "uv sync --project backend --frozen --extra test" in install
+    assert 'echo "$GITHUB_WORKSPACE/backend/.venv/bin" >> "$GITHUB_PATH"' in install
+    commands = "\n".join(step.get("run", "") for step in steps)
+    assert "pip install" not in commands
+    assert "uv run" not in commands, "do not resync a different dependency set at server startup"
+    for step_name, expected in (
+        ("Upgrade isolated database and seed a pending rotation", "alembic upgrade head"),
+        (
+            "Upgrade isolated database and seed a pending rotation",
+            "python scripts/prepare_real_release_smoke.py",
+        ),
+        (
+            "Start real FastAPI release-smoke backend",
+            "python scripts/run_real_release_smoke_server.py",
+        ),
+    ):
+        index = next(i for i, step in enumerate(steps) if step.get("name") == step_name)
+        assert index > install_index
+        assert steps[index]["working-directory"] == "backend"
+        assert expected in steps[index]["run"]
+
+
 def test_release_image_smoke_requires_exact_production_identity_and_dependencies(
     tmp_path: Path,
 ) -> None:
@@ -404,6 +435,128 @@ def test_release_gate_rejects_missing_real_cross_layer_check(selected_name: str)
     assert verify_release_checks(checks, "target")
 
 
+@pytest.mark.parametrize("latest", ["failure", "cancelled", "skipped", "success"])
+def test_release_gate_uses_latest_same_commit_check_not_an_older_success(latest):
+    checks = [
+        {
+            "id": 1,
+            "name": name,
+            "head_sha": "target",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-23T00:00:00Z",
+        }
+        for name in REQUIRED_CHECKS
+    ]
+    checks.append(
+        {
+            "id": 2,
+            "name": "business-cross-layer-e2e",
+            "head_sha": "target",
+            "status": "completed",
+            "conclusion": latest,
+            "started_at": "2026-10-23T01:00:00Z",
+        }
+    )
+    assert (not verify_release_checks(checks, "target")) is (latest == "success")
+
+
+def test_release_gate_rejects_an_ambiguous_same_commit_check_history():
+    checks = [
+        {"name": name, "head_sha": "target", "status": "completed", "conclusion": "success"}
+        for name in REQUIRED_CHECKS
+    ]
+    checks.append(
+        {
+            "name": "business-cross-layer-e2e",
+            "head_sha": "target",
+            "status": "completed",
+            "conclusion": "failure",
+        }
+    )
+    assert verify_release_checks(checks, "target")
+
+
+@pytest.mark.parametrize("latest_status", ["queued", "in_progress", "waiting", "pending"])
+def test_release_gate_rejects_unfinished_retry_after_an_old_success(latest_status):
+    checks = [
+        {"name": name, "head_sha": "target", "status": "completed", "conclusion": "success"}
+        for name in REQUIRED_CHECKS
+    ]
+    checks.append(
+        {
+            "name": "business-cross-layer-e2e",
+            "head_sha": "target",
+            "status": latest_status,
+            "conclusion": None,
+        }
+    )
+    assert verify_release_checks(checks, "target")
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_release_gate_uses_start_time_not_opaque_ids_or_page_order(reverse):
+    checks = [
+        {
+            "id": 100,
+            "name": name,
+            "head_sha": "target",
+            "status": "completed",
+            "conclusion": "failure",
+            "started_at": "2026-10-23T00:00:00Z",
+        }
+        for name in REQUIRED_CHECKS
+    ]
+    checks.extend(
+        [
+            {
+                "id": 1,
+                "name": name,
+                "head_sha": "target",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2026-10-23T01:00:00Z",
+            }
+            for name in REQUIRED_CHECKS
+        ]
+    )
+    if reverse:
+        checks.reverse()
+    assert not verify_release_checks(checks, "target")
+
+
+@pytest.mark.parametrize(
+    "timestamp", [None, "invalid", "2026-10-23T00:00:00", "2026-10-23T00:00:00Z"]
+)
+def test_release_gate_rejects_unorderable_check_history(timestamp):
+    checks = [
+        {
+            "name": name,
+            "head_sha": "target",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-23T00:00:00Z",
+        }
+        for name in REQUIRED_CHECKS
+    ]
+    checks.append(
+        {
+            "name": "business-cross-layer-e2e",
+            "head_sha": "target",
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": timestamp,
+        }
+    )
+    assert verify_release_checks(checks, "target")
+
+
+def test_release_gate_fetches_all_check_attempts_without_hiding_pending_retries():
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert '/check-runs?filter=all&per_page=100"' in source
+    assert "--paginate" in source
+
+
 def test_ci_workflow_enforces_immutable_quality_and_postgres_gates() -> None:
     source = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     workflow = yaml.safe_load(source)
@@ -535,10 +688,30 @@ def test_repeatable_real_cross_layer_fixture_resets_its_owned_idempotency_result
 
 def test_release_dependency_stack_and_dockerfile_are_digest_pinned() -> None:
     compose = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
-    assert all(
-        re.fullmatch(r"[^\s@]+@sha256:[0-9a-f]{64}", service["image"])
-        for service in compose["services"].values()
+    for name, service in compose["services"].items():
+        if name in {"minio", "minio-init"}:
+            assert service["build"] == {
+                "context": ".",
+                "dockerfile": "deploy/Dockerfile.minio",
+                "target": "minio" if name == "minio" else "mc",
+            }
+        else:
+            assert re.fullmatch(r"[^\s@]+@sha256:[0-9a-f]{64}", service["image"])
+    dependency_dockerfile = (REPOSITORY_ROOT / "backend/deploy/Dockerfile.minio").read_text(
+        encoding="utf-8"
     )
+    bases = re.findall(r"^FROM (\S+)", dependency_dockerfile, flags=re.MULTILINE)
+    assert len(bases) == 4
+    assert all(re.fullmatch(r"[^\s@]+@sha256:[0-9a-f]{64}", base) for base in bases)
+    sources = re.findall(
+        r"^ADD --checksum=sha256:([0-9a-f]{64}) "
+        r"https://codeload.github.com/minio/(minio|mc)/tar.gz/([0-9a-f]{40}) ",
+        dependency_dockerfile,
+        flags=re.MULTILINE,
+    )
+    assert {name for _, name, _ in sources} == {"minio", "mc"}
+    assert dependency_dockerfile.count("go build -mod=readonly -trimpath -buildvcs=false") == 2
+    assert dependency_dockerfile.count("USER 10001:10001") == 2
     dockerfile = DOCKERFILE_PATH.read_text(encoding="utf-8")
     assert dockerfile.startswith("# syntax=docker/dockerfile:1.7@sha256:")
     assert "slim-trixie@sha256:" + "0" * 64 in dockerfile

@@ -1,0 +1,128 @@
+/* finesse · component: parser-health · register=product
+ * states: default · hover · focus-visible · active · disabled · loading · error · success
+ * tokens: inherited (app/styles/01-foundations.css and shared Button/StatusBadge) */
+.health {
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--foreground);
+  background: var(--surface);
+}
+
+.header,
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.header {
+  justify-content: space-between;
+}
+.title h2 {
+  margin: 0;
+  font-size: var(--font-body);
+}
+.refresh {
+  min-height: 44px;
+  white-space: nowrap;
+}
+.refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.description {
+  margin: 6px 0 0;
+  font-size: var(--font-secondary);
+  line-height: 1.6;
+}
+.details {
+  margin-top: 6px;
+}
+.details summary {
+  width: fit-content;
+  min-height: 44px;
+  padding: 12px 0;
+  font-size: var(--font-secondary);
+  cursor: pointer;
+  color: var(--foreground-muted);
+  border-radius: var(--radius-sm);
+}
+.details summary:focus-visible,
+.failures a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+.details summary:active,
+.failures a:active {
+  color: var(--primary);
+}
+@media (hover: hover) {
+  .details summary:hover,
+  .failures a:hover {
+    color: var(--primary);
+  }
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+.metrics dt,
+.observed,
+.timing {
+  color: var(--foreground-muted);
+  font-size: var(--font-secondary);
+  line-height: 1.6;
+}
+.metrics dd {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.timing {
+  margin: 8px 0;
+}
+.observed {
+  margin: 8px 0 0;
+}
+.failures {
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  list-style: none;
+}
+.failures li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: var(--font-secondary);
+}
+.failures a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--primary);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .health {
+    padding: 12px;
+  }
+  .header {
+    align-items: flex-start;
+  }
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,0 +1,318 @@
+{
+  "schema_version": "openvigil.workflow-eval-input.v1",
+  "created_at": "2026-10-23T01:00:00Z",
+  "provenance": "Two explicit synthetic software fixtures, separate from expert or field qualification.",
+  "cases": [
+    {
+      "case_id": "synthetic-bearing-review",
+      "as_of": "2026-10-23T01:00:00Z",
+      "source": {
+        "kind": "synthetic_fixture",
+        "source_summary": "Hand-authored synthetic software fixture; not an expert-labeled field observation.",
+        "source_snapshot_sha256": "aaa06c8f0d547b52f2227dcda16eb13c323adc979b95af5debe00503a2a52a41",
+        "source_artifacts": [],
+        "deidentification_statement": ""
+      },
+      "facts": {
+        "topology": {
+          "tenants": [
+            {
+              "id": "EVAL1-TENANT",
+              "name": "Synthetic tenant 1"
+            }
+          ],
+          "wind_farms": [
+            {
+              "id": "EVAL1-FARM",
+              "tenant_id": "EVAL1-TENANT",
+              "name": "Synthetic farm 1",
+              "capacity_mw": 12.0
+            }
+          ],
+          "turbines": [
+            {
+              "id": "EV-T01",
+              "wind_farm_id": "EVAL1-FARM",
+              "model": "Synthetic 4MW",
+              "status": "warning",
+              "health_score": 68.0
+            }
+          ]
+        },
+        "ingest_sources": [
+          {
+            "id": "EVAL1-SCADA",
+            "display_name": "Synthetic SCADA snapshot",
+            "source_kind": "scada_snapshot"
+          }
+        ],
+        "receipts": [
+          {
+            "source_id": "EVAL1-SCADA",
+            "received_at": "2026-10-23T01:00:00Z",
+            "payload": {
+              "source_event_id": "EVAL1-EVENT",
+              "source_sequence": null,
+              "turbine_id": "EV-T01",
+              "observed_at": "2026-10-23T00:59:00Z",
+              "variable": "main_bearing_vibration_rms",
+              "value": 5.4,
+              "unit": "mm/s",
+              "quality": "good",
+              "quality_code": null,
+              "attributes": {
+                "baseline": 2.5,
+                "anomaly_score": 0.91
+              }
+            }
+          }
+        ],
+        "samples": [
+          {
+            "sample_id": "EVAL1-SAMPLE",
+            "source_event_id": "EVAL1-EVENT"
+          }
+        ],
+        "alarm": {
+          "id": "EVAL1-ALARM",
+          "source_event_id": "EVAL1-EVENT",
+          "code": "VIBRATION_REVIEW",
+          "subsystem": "main_bearing",
+          "title": "EV-T01 vibration source review",
+          "severity": "major"
+        },
+        "mission_request": {
+          "alarm_id": "EVAL1-ALARM",
+          "title": "EV-T01 source snapshot analysis",
+          "analysis_profile": {
+            "component": "main_bearing",
+            "primary_variable": "main_bearing_vibration_rms",
+            "related_variables": [],
+            "failure_mode_hint": "",
+            "knowledge_query": "main_bearing vibration diagnostic evidence and inspection requirements",
+            "work_order_plan": {
+              "title": "EV-T01 governed inspection and retest",
+              "priority": "high",
+              "required_resource_types": [
+                "inspection_crew"
+              ],
+              "safety_plan": {
+                "isolation_required": true
+              },
+              "tasks": [
+                {
+                  "title": "Inspect and record retest outcome",
+                  "schema_version": "workflow-eval-retest.v1",
+                  "measurement_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "turbine_health_score": {
+                        "type": "number",
+                        "minimum": 80,
+                        "maximum": 100
+                      }
+                    },
+                    "required": [
+                      "turbine_health_score"
+                    ]
+                  }
+                }
+              ],
+              "closure_health_score_field": "turbine_health_score",
+              "healthy_threshold": 80.0
+            }
+          }
+        },
+        "knowledge_documents": [
+          {
+            "id": "EVAL1-GUIDE",
+            "tenant_id": "EVAL1-TENANT",
+            "wind_farm_id": "EVAL1-FARM",
+            "turbine_id": "EV-T01",
+            "data_scope": "knowledge",
+            "title": "Synthetic bearing inspection guidance",
+            "document_type": "manual",
+            "body": "SYNTHETIC SOFTWARE FIXTURE. Main bearing vibration elevation requires trend comparison and qualified inspection. A high RMS value alone does not establish an exact physical failure mode. Correlate temperature and operating conditions before maintenance approval.",
+            "body_sha256": "d63c8d209f74d0caab6be24aaedeaf25e47a26b487699d1cec524d00284390c8",
+            "document_version": "synthetic-1"
+          }
+        ],
+        "resources": [
+          {
+            "id": "EVAL1-CREW",
+            "resource_type": "inspection_crew",
+            "name": "Synthetic inspection crew",
+            "quantity": 1,
+            "status": "available"
+          }
+        ],
+        "weather": [
+          {
+            "id": "EVAL1-WEATHER",
+            "wind_farm_id": "EVAL1-FARM",
+            "starts_at": "2026-10-23T02:00:00Z",
+            "ends_at": "2026-10-23T08:00:00Z",
+            "wind_speed_ms": 5.0,
+            "wave_height_m": 0.0,
+            "suitable": true
+          }
+        ],
+        "caller_scope": {
+          "tenant_ids": [
+            "EVAL1-TENANT"
+          ],
+          "wind_farm_ids": [
+            "EVAL1-FARM"
+          ],
+          "turbine_ids": [
+            "EV-T01"
+          ],
+          "entity_ids": [],
+          "data_scopes": [
+            "telemetry",
+            "operations",
+            "knowledge"
+          ],
+          "allow_global": true
+        }
+      }
+    },
+    {
+      "case_id": "synthetic-gearbox-abstention",
+      "as_of": "2026-10-23T01:00:00Z",
+      "source": {
+        "kind": "synthetic_fixture",
+        "source_summary": "Hand-authored synthetic software fixture; not an expert-labeled field observation.",
+        "source_snapshot_sha256": "7f69554eb006c10519553596c10cf184e62cffb7c46720ced42368a5d6459338",
+        "source_artifacts": [],
+        "deidentification_statement": ""
+      },
+      "facts": {
+        "topology": {
+          "tenants": [
+            {
+              "id": "EVAL2-TENANT",
+              "name": "Synthetic tenant 2"
+            }
+          ],
+          "wind_farms": [
+            {
+              "id": "EVAL2-FARM",
+              "tenant_id": "EVAL2-TENANT",
+              "name": "Synthetic farm 2",
+              "capacity_mw": 12.0
+            }
+          ],
+          "turbines": [
+            {
+              "id": "EV-T02",
+              "wind_farm_id": "EVAL2-FARM",
+              "model": "Synthetic 4MW",
+              "status": "warning",
+              "health_score": 68.0
+            }
+          ]
+        },
+        "ingest_sources": [
+          {
+            "id": "EVAL2-SCADA",
+            "display_name": "Synthetic SCADA snapshot",
+            "source_kind": "scada_snapshot"
+          }
+        ],
+        "receipts": [
+          {
+            "source_id": "EVAL2-SCADA",
+            "received_at": "2026-10-23T01:00:00Z",
+            "payload": {
+              "source_event_id": "EVAL2-EVENT",
+              "source_sequence": null,
+              "turbine_id": "EV-T02",
+              "observed_at": "2026-10-23T00:59:00Z",
+              "variable": "gearbox_vibration_rms",
+              "value": 0.0,
+              "unit": "mm/s",
+              "quality": "bad",
+              "quality_code": null,
+              "attributes": {}
+            }
+          }
+        ],
+        "samples": [],
+        "alarm": {
+          "id": "EVAL2-ALARM",
+          "source_event_id": "EVAL2-EVENT",
+          "code": "VIBRATION_REVIEW",
+          "subsystem": "gearbox",
+          "title": "EV-T02 vibration source review",
+          "severity": "major"
+        },
+        "mission_request": {
+          "alarm_id": "EVAL2-ALARM",
+          "title": "EV-T02 source snapshot analysis",
+          "analysis_profile": {
+            "component": "gearbox",
+            "primary_variable": "gearbox_vibration_rms",
+            "related_variables": [],
+            "failure_mode_hint": "",
+            "knowledge_query": "gearbox vibration diagnostic evidence and inspection requirements",
+            "work_order_plan": {
+              "title": "EV-T02 governed inspection and retest",
+              "priority": "high",
+              "required_resource_types": [
+                "inspection_crew"
+              ],
+              "safety_plan": {
+                "isolation_required": true
+              },
+              "tasks": [
+                {
+                  "title": "Inspect and record retest outcome",
+                  "schema_version": "workflow-eval-retest.v1",
+                  "measurement_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "turbine_health_score": {
+                        "type": "number",
+                        "minimum": 80,
+                        "maximum": 100
+                      }
+                    },
+                    "required": [
+                      "turbine_health_score"
+                    ]
+                  }
+                }
+              ],
+              "closure_health_score_field": "turbine_health_score",
+              "healthy_threshold": 80.0
+            }
+          }
+        },
+        "knowledge_documents": [],
+        "resources": [],
+        "weather": [],
+        "caller_scope": {
+          "tenant_ids": [
+            "EVAL2-TENANT"
+          ],
+          "wind_farm_ids": [
+            "EVAL2-FARM"
+          ],
+          "turbine_ids": [
+            "EV-T02"
+          ],
+          "entity_ids": [],
+          "data_scopes": [
+            "telemetry",
+            "operations",
+            "knowledge"
+          ],
+          "allow_global": true
+        }
+      }
+    }
+  ]
+}

@@ -1,1 +1,6 @@
 backend/requirements.container.txt text eol=lf
+backend/tests/fixtures/document/model-manifest.json text eol=lf
+backend/tests/fixtures/document/scanned-zh.pdf binary
+tests/fixtures/knowledge-pdf/plain.pdf binary
+tests/fixtures/knowledge-pdf/rotated.pdf binary
+tests/fixtures/knowledge-pdf/cropped.pdf binary

@@ -101,9 +101,14 @@ class OwnedInfrastructureChallenges:
         project: str,
         stop_worker: Callable[[], None],
         start_worker: Callable[[], None],
+        *,
+        worker_service: str = "structural-worker",
     ) -> None:
+        if worker_service not in {"structural-worker", "document-worker"}:
+            raise ValueError("unsupported owned worker service")
         self.folder, self.docker, self.project = folder, docker, project
         self.stop_worker, self.start_worker = stop_worker, start_worker
+        self.worker_service = worker_service
         self.completed: set[str] = set()
         self.paused: set[str] = set()
         self.actions: list[dict[str, str]] = []
@@ -140,7 +145,7 @@ class OwnedInfrastructureChallenges:
             }:
                 raise ValueError("invalid challenge request")
             service, action = request["service"], request["action"]
-            if service == "structural-worker":
+            if service == self.worker_service:
                 if action == "stop":
                     self.stop_worker()
                 elif action == "start":
@@ -189,20 +194,27 @@ async def scope_database_evidence(config: dict[str, Any], folder: Path) -> dict[
                 )
                 for model in expected
             }
-            assert counts == {model.__tablename__: count for model, count in expected.items()}, (
-                counts
-            )
+            if not (counts == {model.__tablename__: count for model, count in expected.items()}):
+                raise RuntimeError("structural scope evidence verification failed: entity_counts")
             records = list(await session.scalars(select(WaveformRecord)))
-            assert {row.id for row in records} == set(browser["record_ids"])
+            if not ({row.id for row in records} == set(browser["record_ids"])):
+                raise RuntimeError("structural scope evidence verification failed: record_identity")
             mixed = next(row for row in records if row.id == browser["mixed_record_id"])
-            assert {channel["component_id"] for channel in mixed.channel_snapshot} == {
-                row["id"] for row in fixture["components"]
-            }
+            if not (
+                {channel["component_id"] for channel in mixed.channel_snapshot}
+                == {row["id"] for row in fixture["components"]}
+            ):
+                raise RuntimeError(
+                    "structural scope evidence verification failed: mixed_components"
+                )
             runs = list(await session.scalars(select(StructuralAnalysisRun)))
             modes = list(await session.scalars(select(ModalObservation.id)))
             execution_receipts = [verify_persisted_execution(run, settings) for run in runs]
             for run in runs:
-                assert run.status == "succeeded" and run.attempts == 1
+                if not (run.status == "succeeded" and run.attempts == 1):
+                    raise RuntimeError(
+                        "structural scope evidence verification failed: analysis_status"
+                    )
                 events = list(
                     await session.scalars(
                         select(OutboxEvent).where(
@@ -211,11 +223,21 @@ async def scope_database_evidence(config: dict[str, Any], folder: Path) -> dict[
                         )
                     )
                 )
-                assert len(events) == 1
-                assert events[0].status == "succeeded" and events[0].attempts == 1
-                assert events[0].processed_at is not None
+                if not (len(events) == 1):
+                    raise RuntimeError(
+                        "structural scope evidence verification failed: analysis_event_count"
+                    )
+                if not (events[0].status == "succeeded" and events[0].attempts == 1):
+                    raise RuntimeError(
+                        "structural scope evidence verification failed: analysis_event_status"
+                    )
+                if not (events[0].processed_at is not None):
+                    raise RuntimeError(
+                        "structural scope evidence verification failed: analysis_event_timestamp"
+                    )
             claim = await session.get(EngineeringClaim, browser["claim_id"])
-            assert claim is not None and claim.review_status == "approved"
+            if not (claim is not None and claim.review_status == "approved"):
+                raise RuntimeError("structural scope evidence verification failed: approved_claim")
             claim_revision = claim.revision
             artifacts = [
                 {"uri": row.artifact_uri, "sha256": row.artifact_sha256} for row in records
@@ -241,7 +263,10 @@ async def scope_database_evidence(config: dict[str, Any], folder: Path) -> dict[
                     if count:
                         break
                     await asyncio.sleep(0.1)
-                assert count > 0, subject
+                if not (count > 0):
+                    raise RuntimeError(
+                        "structural scope evidence verification failed: read_audit_presence"
+                    )
                 audit_counts[subject] = count
         scoped = {}
         for subject in ("business-component", "business-sensor"):
@@ -255,18 +280,26 @@ async def scope_database_evidence(config: dict[str, Any], folder: Path) -> dict[
                     "records": list(await session.scalars(select(WaveformRecord.id))),
                     "analyses": list(await session.scalars(select(StructuralAnalysisRun.id))),
                 }
-        assert scoped["business-component"] == {
-            "components": [fixture["components"][0]["id"]],
-            "sensors": [],
-            "records": [],
-            "analyses": [],
-        }
-        assert scoped["business-sensor"] == {
-            "components": [],
-            "sensors": [fixture["sensors"][0]["id"]],
-            "records": [],
-            "analyses": [],
-        }
+        if not (
+            scoped["business-component"]
+            == {
+                "components": [fixture["components"][0]["id"]],
+                "sensors": [],
+                "records": [],
+                "analyses": [],
+            }
+        ):
+            raise RuntimeError("structural scope evidence verification failed: component_scope")
+        if not (
+            scoped["business-sensor"]
+            == {
+                "components": [],
+                "sensors": [fixture["sensors"][0]["id"]],
+                "records": [],
+                "analyses": [],
+            }
+        ):
+            raise RuntimeError("structural scope evidence verification failed: sensor_scope")
     finally:
         await engine.dispose()
     store = create_knowledge_graph_store(
@@ -276,7 +309,8 @@ async def scope_database_evidence(config: dict[str, Any], folder: Path) -> dict[
     )
     try:
         snapshot = await store.snapshot(KNOWLEDGE_GRAPH_PROJECTION_ID)
-        assert snapshot is not None
+        if not (snapshot is not None):
+            raise RuntimeError("structural scope evidence verification failed: graph_snapshot")
         projected = {node.entity_id for node in snapshot.nodes}
         required = (
             {row["id"] for row in fixture["components"] + fixture["sensors"]}
@@ -285,13 +319,15 @@ async def scope_database_evidence(config: dict[str, Any], folder: Path) -> dict[
             | {browser["claim_id"]}
             | set(modes)
         )
-        assert required <= projected
+        if not (required <= projected):
+            raise RuntimeError("structural scope evidence verification failed: graph_coverage")
         statuses = {
             node.entity_id: node.properties.get("status")
             for node in snapshot.nodes
             if node.entity_id in browser["run_ids"]
         }
-        assert statuses == {identity: "succeeded" for identity in browser["run_ids"]}
+        if not (statuses == {identity: "succeeded" for identity in browser["run_ids"]}):
+            raise RuntimeError("structural scope evidence verification failed: graph_status")
         return {
             "counts": counts,
             "execution_receipts": execution_receipts,

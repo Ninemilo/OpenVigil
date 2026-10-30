@@ -14,6 +14,7 @@ from windops_backend.api.deps import (
     require_roles,
 )
 from windops_backend.config import Settings
+from windops_backend.document_worker_health import read_document_worker_health
 from windops_backend.errors import (
     InvalidTransitionError,
     NotFoundError,
@@ -30,6 +31,7 @@ from windops_backend.schemas import (
     KnowledgeDocumentCreateRequest,
     KnowledgeDocumentUploadRequest,
 )
+from windops_backend.services.document_health import document_queue_health
 from windops_backend.services.document_parse import configured_parse_identity
 from windops_backend.services.idempotency import (
     execute_idempotent_command,
@@ -54,16 +56,20 @@ router = APIRouter()
 
 @router.get("/knowledge/parser-capabilities", tags=["knowledge"])
 async def knowledge_parser_capabilities(
+    request: Request,
+    response: Response,
     settings: Settings = Depends(get_runtime_settings),
+    session: AsyncSession = Depends(get_session),
     principal: Principal = Depends(require_read_access),
 ) -> dict[str, Any]:
-    del principal
+    response.headers["Cache-Control"] = "no-store"
     configured = bool(
         settings.document_parser_enabled
         and settings.document_parser_models_path is not None
         and settings.document_parser_model_manifest_sha256
         and settings.document_parser_python
     )
+    worker = await read_document_worker_health(settings, request.app.state.redis_client)
     return {
         "native": True,
         "docling_pdf_configured": configured,
@@ -73,7 +79,14 @@ async def knowledge_parser_capabilities(
         "max_pdf_page_height_points": 2000,
         "max_artifact_bytes": MAX_KNOWLEDGE_ARTIFACT_BYTES,
         "ocr_requires_numeric_review": True,
-        "worker_health_verified": False,
+        "worker_health_verified": (
+            configured
+            and worker.get("status") == "ready"
+            and worker.get("heartbeat_verified") is True
+            and worker.get("runtime_ready") is True
+        ),
+        "worker": worker,
+        "queue": await document_queue_health(session, principal.graph_access_policy()),
     }
 
 

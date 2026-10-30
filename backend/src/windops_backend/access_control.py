@@ -11,6 +11,10 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from windops_backend.knowledge_graph.domain import GraphAccessPolicy
 from windops_backend.model_engineering_claim import EngineeringClaim, EngineeringClaimReview
+from windops_backend.model_knowledge_review import (
+    KnowledgeNumericReview,
+    KnowledgeNumericReviewEvent,
+)
 from windops_backend.model_structural import (
     HealthBaseline,
     ModalObservation,
@@ -827,6 +831,14 @@ def _loader_criteria(policy: GraphAccessPolicy) -> tuple[Any, ...]:
         (
             KnowledgePassage,
             _knowledge_document_id_scope_clause(policy, KnowledgePassage.document_id),
+        ),
+        (
+            KnowledgeNumericReview,
+            _knowledge_document_id_scope_clause(policy, KnowledgeNumericReview.document_id),
+        ),
+        (
+            KnowledgeNumericReviewEvent,
+            _knowledge_document_id_scope_clause(policy, KnowledgeNumericReviewEvent.document_id),
         ),
         (
             ModelPrediction,

@@ -42,6 +42,10 @@ from windops_backend.model_knowledge import (
     KnowledgeDocument,
 )
 from windops_backend.model_knowledge_passage import KnowledgePassage
+from windops_backend.model_knowledge_review import (
+    KnowledgeNumericReview,
+    KnowledgeNumericReviewEvent,
+)
 from windops_backend.model_operations_support import (
     GeneratedReport,
     KnowledgeCase,
@@ -146,6 +150,8 @@ __all__ = (
     "AssetHealthEvent",
     "KnowledgeDocument",
     "KnowledgePassage",
+    "KnowledgeNumericReview",
+    "KnowledgeNumericReviewEvent",
     "RegisteredModel",
     "ModelDeployment",
     "ModelPrediction",

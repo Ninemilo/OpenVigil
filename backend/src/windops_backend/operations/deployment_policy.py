@@ -11,6 +11,16 @@ from typing import Any, cast
 
 import yaml  # type: ignore[import-untyped]
 
+from windops_backend.operations.document_deployment import validate_document_workload
+from windops_backend.operations.document_identity import (
+    DOCUMENT_ANNOTATIONS,
+    DOCUMENT_CONFIGURATION_RESOURCE,
+    DOCUMENT_ENV,
+    DOCUMENT_RUNTIME_CONFIG,
+    DOCUMENT_WORKLOAD,
+    document_bundle_id,
+    document_models_claim,
+)
 from windops_backend.operations.hybrid_identity import (
     HYBRID_ANNOTATIONS,
     HYBRID_ENV,
@@ -261,6 +271,14 @@ def _validate_container(
             )
         observed_environment[variable] = item.get("value")
     release_variables = {**RELEASE_ENV, **HYBRID_ENV} if "bundle_id" in release else RELEASE_ENV
+    if "document_bundle_id" in release:
+        release_variables = {**release_variables, **DOCUMENT_ENV}
+        if any(
+            observed_environment.get(key) != value for key, value in DOCUMENT_RUNTIME_CONFIG.items()
+        ):
+            raise DeploymentPolicyError(
+                f"{workload_name}/{name} must configure the qualified parser"
+            )
     for field, variable in release_variables.items():
         if observed_environment.get(variable) != release[field]:
             raise DeploymentPolicyError(
@@ -281,6 +299,8 @@ def _validate_release_annotations(
         if "bundle_id" in release
         else RELEASE_ANNOTATIONS
     )
+    if "document_bundle_id" in release:
+        release_annotations = {**release_annotations, **DOCUMENT_ANNOTATIONS}
     for release_field, annotation in release_annotations.items():
         if annotations.get(annotation) != release[release_field]:
             raise DeploymentPolicyError(f"{field} must bind {annotation} to the approved release")
@@ -313,6 +333,9 @@ def _validate_workload(
     if name == STRUCTURAL_WORKLOAD:
         service_account = STRUCTURAL_WORKLOAD
         configuration_resource = STRUCTURAL_CONFIGURATION_RESOURCE
+    elif name == DOCUMENT_WORKLOAD:
+        service_account = DOCUMENT_WORKLOAD
+        configuration_resource = DOCUMENT_CONFIGURATION_RESOURCE
     if pod_spec.get("serviceAccountName") != service_account:
         raise DeploymentPolicyError(f"{kind}/{name} must use {service_account}")
     if pod_spec.get("automountServiceAccountToken") is not False:
@@ -466,7 +489,9 @@ def _validate_network_rules(value: object, field: str, peer_key: str) -> None:
                 raise DeploymentPolicyError(f"{field} requires numeric ports from 1 to 65535")
 
 
-def _validate_network_policy(documents: list[dict[str, Any]], *, hybrid: bool = False) -> None:
+def _validate_network_policy(
+    documents: list[dict[str, Any]], *, hybrid: bool = False, document_parser: bool = False
+) -> None:
     default_deny = _mapping(
         _named(documents, "NetworkPolicy", "windops-default-deny").get("spec"),
         "NetworkPolicy/windops-default-deny.spec",
@@ -498,7 +523,9 @@ def _validate_network_policy(documents: list[dict[str, Any]], *, hybrid: bool = 
             {
                 "key": "app.kubernetes.io/component",
                 "operator": "NotIn",
-                "values": ["care-worker", "structural-worker"] if hybrid else ["care-worker"],
+                "values": ["care-worker"]
+                + (["structural-worker"] if hybrid else [])
+                + (["document-worker"] if document_parser else []),
             }
         ]
     } or egress.get("policyTypes") != ["Egress"]:
@@ -739,6 +766,8 @@ def verify_deployment_policy(
     expected_commit_sha: str,
     approved_backup_storage_class: str,
     expected_structural_image_digest: str | None = None,
+    expected_document_image_digest: str | None = None,
+    expected_model_manifest_sha256: str | None = None,
 ) -> dict[str, Any]:
     if (
         re.fullmatch(r"sha256:[0-9a-f]{64}", expected_image_digest) is None
@@ -769,6 +798,16 @@ def verify_deployment_policy(
 
     documents, files = _documents(manifests)
     hybrid = expected_structural_image_digest is not None
+    document_parser = expected_document_image_digest is not None
+    if document_parser and (not hybrid or expected_model_manifest_sha256 is None):
+        raise DeploymentPolicyError("document release requires three images and a model manifest")
+    if expected_model_manifest_sha256 is not None and not document_parser:
+        raise DeploymentPolicyError("model manifest requires an explicit document image")
+    if not document_parser and any(
+        item.get("kind") in WORKLOAD_KINDS and item["metadata"]["name"] == DOCUMENT_WORKLOAD
+        for item in documents
+    ):
+        raise DeploymentPolicyError("document workload requires explicit release identity")
     if not hybrid and any(
         resource.get("kind") in WORKLOAD_KINDS
         and resource["metadata"]["name"] == STRUCTURAL_WORKLOAD
@@ -790,6 +829,13 @@ def verify_deployment_policy(
         if hybrid
         else set()
     )
+    if document_parser and expected_model_manifest_sha256 is not None:
+        required |= {
+            ("Deployment", DOCUMENT_WORKLOAD),
+            ("ServiceAccount", DOCUMENT_WORKLOAD),
+            ("NetworkPolicy", "windops-document-egress"),
+            ("PersistentVolumeClaim", document_models_claim(expected_model_manifest_sha256)),
+        }
     missing = required - observed_identities
     if missing:
         formatted = ", ".join(f"{kind}/{name}" for kind, name in sorted(missing))
@@ -810,6 +856,7 @@ def verify_deployment_policy(
         RUNTIME_SERVICE_ACCOUNT,
         CARE_SERVICE_ACCOUNT,
         *([STRUCTURAL_WORKLOAD] if hybrid else []),
+        *([DOCUMENT_WORKLOAD] if document_parser else []),
     ):
         service_account = _named(documents, "ServiceAccount", account_name)
         if service_account.get("automountServiceAccountToken") is not False:
@@ -842,6 +889,21 @@ def verify_deployment_policy(
                 ),
             }
         )
+    if expected_document_image_digest is not None:
+        release.update(
+            {
+                "document_image_digest": expected_document_image_digest,
+                "model_manifest_sha256": cast(str, expected_model_manifest_sha256),
+                "document_bundle_id": document_bundle_id(
+                    expected_release_id,
+                    expected_commit_sha,
+                    expected_image_digest,
+                    cast(str, expected_structural_image_digest),
+                    expected_document_image_digest,
+                    cast(str, expected_model_manifest_sha256),
+                ),
+            }
+        )
     workloads = []
     for resource in documents:
         if resource.get("kind") not in WORKLOAD_KINDS:
@@ -851,14 +913,34 @@ def verify_deployment_policy(
             if resource["metadata"]["name"] == STRUCTURAL_WORKLOAD
             else expected_image_digest
         )
+        if resource["metadata"]["name"] == DOCUMENT_WORKLOAD:
+            digest = expected_document_image_digest
         if digest is None:
             raise DeploymentPolicyError("structural workload requires its explicit approved digest")
         workloads.append(_validate_workload(resource, digest, {**release, "image_digest": digest}))
     _validate_availability(documents)
     _validate_care_workload(documents)
-    _validate_network_policy(documents, hybrid=hybrid)
+    _validate_network_policy(documents, hybrid=hybrid, document_parser=document_parser)
     if hybrid:
         _validate_structural_workload(documents)
+    if expected_model_manifest_sha256 is not None:
+        worker = _named(documents, "Deployment", DOCUMENT_WORKLOAD)
+        labels = _pod_template(worker)["metadata"]["labels"]
+        policies = [
+            item
+            for item in documents
+            if item.get("kind") == "NetworkPolicy"
+            and _selector_matches(item["spec"].get("podSelector", {}), labels)
+        ]
+        claim = _named(
+            documents,
+            "PersistentVolumeClaim",
+            document_models_claim(expected_model_manifest_sha256),
+        )
+        try:
+            validate_document_workload(worker, claim, policies, expected_model_manifest_sha256)
+        except ValueError as exc:
+            raise DeploymentPolicyError(str(exc)) from exc
     return {
         "format_version": 1,
         "gate": "deployment_policy",
@@ -876,6 +958,15 @@ def verify_deployment_policy(
             else {}
         ),
         "approved_backup_storage_class": approved_backup_storage_class,
+        **(
+            {
+                "expected_document_image_digest": expected_document_image_digest,
+                "expected_model_manifest_sha256": expected_model_manifest_sha256,
+                "document_bundle_id": release["document_bundle_id"],
+            }
+            if document_parser
+            else {}
+        ),
         "manifest_files": files,
         "resource_count": len(documents),
         "workloads": workloads,
@@ -892,7 +983,12 @@ def verify_deployment_policy(
             "isolated_care_execution_plane",
             "care_checkpoint_retry_idempotency",
             "care_scoped_storage_credentials",
-        ],
+        ]
+        + (
+            ["isolated_document_execution_plane", "versioned_read_only_document_models"]
+            if document_parser
+            else []
+        ),
     }
 
 
@@ -914,6 +1010,8 @@ def main() -> None:
     parser.add_argument("--manifests", type=Path, required=True)
     parser.add_argument("--expected-image-digest", required=True)
     parser.add_argument("--expected-structural-image-digest")
+    parser.add_argument("--expected-document-image-digest")
+    parser.add_argument("--expected-model-manifest-sha256")
     parser.add_argument("--expected-release-id", required=True)
     parser.add_argument("--expected-commit-sha", required=True)
     parser.add_argument("--approved-backup-storage-class", required=True)
@@ -924,6 +1022,8 @@ def main() -> None:
             args.manifests,
             expected_image_digest=args.expected_image_digest,
             expected_structural_image_digest=args.expected_structural_image_digest,
+            expected_document_image_digest=args.expected_document_image_digest,
+            expected_model_manifest_sha256=args.expected_model_manifest_sha256,
             expected_release_id=args.expected_release_id,
             expected_commit_sha=args.expected_commit_sha,
             approved_backup_storage_class=args.approved_backup_storage_class,

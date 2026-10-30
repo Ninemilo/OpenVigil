@@ -34,6 +34,10 @@ jobs:
       WINDOPS_INDEPENDENT_EVIDENCE_URL: ${{ vars.WINDOPS_INDEPENDENT_EVIDENCE_URL }}
       WINDOPS_INDEPENDENT_EVIDENCE_SHA256: ${{ vars.WINDOPS_INDEPENDENT_EVIDENCE_SHA256 }}
       WINDOPS_INDEPENDENT_EVIDENCE_TOKEN: ${{ secrets.WINDOPS_INDEPENDENT_EVIDENCE_TOKEN }}
+      WINDOPS_DOCUMENT_INPUTS_URL: ${{ vars.WINDOPS_DOCUMENT_INPUTS_URL }}
+      WINDOPS_DOCUMENT_INPUTS_SHA256: ${{ vars.WINDOPS_DOCUMENT_INPUTS_SHA256 }}
+      WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256: ${{ vars.WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256 }}
+      WINDOPS_DOCUMENT_INPUTS_TOKEN: ${{ secrets.WINDOPS_DOCUMENT_INPUTS_TOKEN }}
       WINDOPS_FAIL_ON_SKIPPED: "1"
     steps:
       - name: Check out the exact candidate commit
@@ -56,8 +60,12 @@ jobs:
           [[ "${WINDOPS_INDEPENDENT_EVIDENCE_URL}" =~ ^https:// ]]
           [[ "${WINDOPS_INDEPENDENT_EVIDENCE_SHA256}" =~ ^[0-9a-f]{64}$ ]]
           test -n "${WINDOPS_INDEPENDENT_EVIDENCE_TOKEN}"
+          [[ "${WINDOPS_DOCUMENT_INPUTS_URL}" =~ ^https:// ]]
+          [[ "${WINDOPS_DOCUMENT_INPUTS_SHA256}" =~ ^[0-9a-f]{64}$ ]]
+          [[ "${WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256}" =~ ^[0-9a-f]{64}$ ]]
+          test -n "${WINDOPS_DOCUMENT_INPUTS_TOKEN}"
           echo "RELEASE_STARTED_AT=$(date --utc +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_ENV}"
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" \
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?filter=all&per_page=100" \
             --jq '.check_runs[]' \
             | python backend/scripts/verify_release_checks.py --sha "${GITHUB_SHA}"
 
@@ -172,6 +180,59 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
+      - name: Stage approved document models and offline probe inputs
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/windops-document-inputs.zip"
+          curl --fail --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --max-time 600 --max-filesize 2200961024 \
+            --header "Authorization: Bearer ${WINDOPS_DOCUMENT_INPUTS_TOKEN}" \
+            --output "${archive}" "${WINDOPS_DOCUMENT_INPUTS_URL}"
+          uv run --project backend python backend/scripts/stage_document_release_inputs.py \
+            --archive "${archive}" --archive-sha256 "${WINDOPS_DOCUMENT_INPUTS_SHA256}" \
+            --destination "${RUNNER_TEMP}/windops-document-inputs" \
+            --model-manifest-sha256 "${WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256}"
+          mkdir -p release-evidence/document
+          cp "${RUNNER_TEMP}/windops-document-inputs/models/openvigil-model-manifest.json" \
+            release-evidence/document/model-manifest.json
+          cp "${RUNNER_TEMP}/windops-document-inputs/fixture/expectations.json" \
+            release-evidence/document/probe-expectations.json
+          rm -f -- "${archive}"
+
+      - name: Build the dedicated document image from the exact API digest
+        id: document-build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: backend
+          file: backend/Dockerfile.document-parser
+          platforms: ${{ steps.policy.outputs.platform }}
+          push: true
+          pull: true
+          provenance: mode=max
+          sbom: true
+          tags: ${{ env.IMAGE_REPOSITORY }}-document:${{ github.sha }}
+          build-args: |
+            BACKEND_IMAGE=${{ env.IMAGE_REPOSITORY }}@${{ steps.build.outputs.digest }}
+            WINDOPS_RELEASE_ID=${{ env.RELEASE_ID }}
+            WINDOPS_COMMIT_SHA=${{ github.sha }}
+
+      - name: Export the three-image and model bundle identity
+        run: |
+          set -euo pipefail
+          document_digest="${{ steps.document-build.outputs.digest }}"
+          [[ "${document_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          bundle_id="$(uv run --project backend python -c 'import sys; from windops_backend.operations.document_identity import document_bundle_id; print(document_bundle_id(*sys.argv[1:]))' "${RELEASE_ID}" "${GITHUB_SHA}" "${IMAGE_DIGEST}" "${STRUCTURAL_IMAGE_DIGEST}" "${document_digest}" "${WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256}")"
+          echo "DOCUMENT_IMAGE_DIGEST=${document_digest}" >> "${GITHUB_ENV}"
+          echo "DOCUMENT_IMAGE_REF=${IMAGE_REPOSITORY}-document@${document_digest}" >> "${GITHUB_ENV}"
+          echo "DOCUMENT_RELEASE_BUNDLE_ID=${bundle_id}" >> "${GITHUB_ENV}"
+
+      - name: Publish document image build provenance
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-name: ${{ env.IMAGE_REPOSITORY }}-document
+          subject-digest: ${{ steps.document-build.outputs.digest }}
+          push-to-registry: true
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
@@ -196,6 +257,11 @@ jobs:
             --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/heads/main" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             "${STRUCTURAL_IMAGE_REF}" > release-evidence/structural/signature-verification.json
+          cosign sign --yes "${DOCUMENT_IMAGE_REF}"
+          cosign verify \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/heads/main" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${DOCUMENT_IMAGE_REF}" > release-evidence/document/signature-verification.json
 
       - name: Scan immutable image for blocking vulnerabilities
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
@@ -250,6 +316,47 @@ jobs:
             --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/heads/main" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             "${STRUCTURAL_IMAGE_REF}" > release-evidence/structural/sbom-attestation-verification.json
+
+      - name: Scan the document image for blocking vulnerabilities
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        with:
+          image-ref: ${{ env.IMAGE_REPOSITORY }}-document@${{ steps.document-build.outputs.digest }}
+          format: json
+          output: release-evidence/document/image-scan.json
+          exit-code: "1"
+          ignore-unfixed: false
+          severity: CRITICAL,HIGH
+
+      - name: Generate the document SPDX SBOM
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        with:
+          image-ref: ${{ env.IMAGE_REPOSITORY }}-document@${{ steps.document-build.outputs.digest }}
+          format: spdx-json
+          output: release-evidence/document/sbom.spdx.json
+          exit-code: "0"
+
+      - name: Attest and verify the document SBOM
+        run: |
+          set -euo pipefail
+          jq -e '.spdxVersion and (.packages | length > 0)' release-evidence/document/sbom.spdx.json
+          cosign attest --yes --type spdxjson --predicate release-evidence/document/sbom.spdx.json "${DOCUMENT_IMAGE_REF}"
+          cosign verify-attestation --type spdxjson \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/heads/main" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${DOCUMENT_IMAGE_REF}" > release-evidence/document/sbom-attestation-verification.json
+
+      - name: Verify the offline document runtime against approved models and the API parent
+        run: >-
+          uv run --project backend python -m windops_backend.operations.document_artifact
+          --image "${DOCUMENT_IMAGE_REF}" --api-image "${IMAGE_REF}"
+          --release-id "${RELEASE_ID}" --commit-sha "${GITHUB_SHA}"
+          --source-url "https://github.com/${GITHUB_REPOSITORY}"
+          --policy backend/deploy/release-policy.json --lock backend/requirements.document-parser.txt
+          --models "${RUNNER_TEMP}/windops-document-inputs/models"
+          --fixture "${RUNNER_TEMP}/windops-document-inputs/fixture/source.pdf"
+          --expectations "${RUNNER_TEMP}/windops-document-inputs/fixture/expectations.json"
+          --model-manifest-sha256 "${WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256}"
+          --report release-evidence/document/container-artifact.json
 
       - name: Verify image structure, labels, entrypoints, lock, and client compatibility
         working-directory: backend
@@ -382,6 +489,35 @@ jobs:
             "WINDOPS_RELEASE_BUNDLE_ID=${RELEASE_BUNDLE_ID}" \
             > release-evidence/structural/runtime-bindings.env
 
+      - name: Render and verify the three-image document deployment
+        run: |
+          set -euo pipefail
+          kubectl kustomize backend/deploy/document-parser > release-evidence/document/kustomize-base.yaml
+          uv run --project backend python backend/scripts/render_release_manifests.py \
+            --input release-evidence/document/kustomize-base.yaml \
+            --output release-evidence/document/rendered-manifests.yaml \
+            --release-id "${RELEASE_ID}" --commit-sha "${GITHUB_SHA}" \
+            --image "${IMAGE_REF}" --structural-image "${STRUCTURAL_IMAGE_REF}" \
+            --document-image "${DOCUMENT_IMAGE_REF}" \
+            --model-manifest-sha256 "${WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256}"
+          uv run --project backend windops-deployment-policy \
+            --manifests release-evidence/document/rendered-manifests.yaml \
+            --expected-image-digest "${IMAGE_DIGEST}" \
+            --expected-structural-image-digest "${STRUCTURAL_IMAGE_DIGEST}" \
+            --expected-document-image-digest "${DOCUMENT_IMAGE_DIGEST}" \
+            --expected-model-manifest-sha256 "${WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256}" \
+            --expected-release-id "${RELEASE_ID}" --expected-commit-sha "${GITHUB_SHA}" \
+            --approved-backup-storage-class "${{ steps.policy.outputs.storage_class }}" \
+            --report release-evidence/document/deployment-policy.json
+          printf '%s\n' \
+            "WINDOPS_API_IMAGE_DIGEST=${IMAGE_DIGEST}" \
+            "WINDOPS_STRUCTURAL_IMAGE_DIGEST=${STRUCTURAL_IMAGE_DIGEST}" \
+            "WINDOPS_RELEASE_BUNDLE_ID=${RELEASE_BUNDLE_ID}" \
+            "WINDOPS_DOCUMENT_IMAGE_DIGEST=${DOCUMENT_IMAGE_DIGEST}" \
+            "WINDOPS_DOCUMENT_RELEASE_BUNDLE_ID=${DOCUMENT_RELEASE_BUNDLE_ID}" \
+            "WINDOPS_DOCUMENT_PARSER_MODEL_MANIFEST_SHA256=${WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256}" \
+            > release-evidence/document/runtime-bindings.env
+
       - name: Create a verified backup from the release image
         run: |
           set -euo pipefail
@@ -425,7 +561,7 @@ jobs:
             | sha256sum --check --strict
           uv run --project backend python backend/scripts/stage_independent_release_evidence.py \
             --archive "${archive}" \
-            --evidence-dir release-evidence --hybrid
+            --evidence-dir release-evidence --hybrid --document
           rm -f -- "${archive}"
 
       - name: Verify protected full-scale CARE acceptance for this image
@@ -545,6 +681,29 @@ jobs:
           jq -e --arg bundle_id "${RELEASE_BUNDLE_ID}" \
             '.status == "qualified" and .bundle_id == $bundle_id and .api_gate_count == 11' \
             release-evidence/hybrid-release-qualification.json
+
+      - name: Qualify all three images and the document model bundle
+        run: |
+          set -euo pipefail
+          uv run --project backend python -m windops_backend.operations.document_release_gate \
+            --evidence-dir release-evidence \
+            --release-id "${RELEASE_ID}" --commit-sha "${GITHUB_SHA}" \
+            --api-image "${IMAGE_REF}" --structural-image "${STRUCTURAL_IMAGE_REF}" \
+            --document-image "${DOCUMENT_IMAGE_REF}" \
+            --source-url "https://github.com/${GITHUB_REPOSITORY}" \
+            --policy backend/deploy/release-policy.json \
+            --structural-lock backend/requirements.structural.txt \
+            --document-lock backend/requirements.document-parser.txt \
+            --models "${RUNNER_TEMP}/windops-document-inputs/models" \
+            --fixture "${RUNNER_TEMP}/windops-document-inputs/fixture/source.pdf" \
+            --expectations "${RUNNER_TEMP}/windops-document-inputs/fixture/expectations.json" \
+            --model-manifest-sha256 "${WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256}" \
+            --qualification-output release-evidence/document-release-qualification.json \
+            > release-evidence/document-verifier.json
+          jq -e --arg bundle_id "${DOCUMENT_RELEASE_BUNDLE_ID}" \
+            --arg model_sha "${WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256}" \
+            '.status == "qualified" and .bundle_id == $bundle_id and .model_manifest_sha256 == $model_sha and .api_gate_count == 11' \
+            release-evidence/document-release-qualification.json
 
       - name: Remove decoded protected configuration
         if: always()

@@ -10,6 +10,18 @@ import pytest
 from scripts import verify_care_reference
 
 
+@pytest.mark.parametrize("newline", [b"\n", b"\r\n"])
+def test_reference_hash_is_stable_across_checkout_line_endings(
+    tmp_path: Path, newline: bytes
+) -> None:
+    path = tmp_path / "reference.py"
+    path.write_bytes(b"approved source" + newline + b"unchanged bytes" + newline)
+    expected = hashlib.sha256(b"approved source\r\nunchanged bytes\r\n").hexdigest()
+    assert verify_care_reference._sha256(path) == expected
+    path.write_bytes(b"modified source" + newline + b"unchanged bytes" + newline)
+    assert verify_care_reference._sha256(path) != expected
+
+
 @pytest.mark.parametrize(
     "index_record",
     [

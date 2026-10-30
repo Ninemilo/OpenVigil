@@ -35,7 +35,11 @@ test("core asset and knowledge tables consume the shared DataTable", async () =>
 test("alarm, mission, and work-order lists delegate operational table behavior", async () => {
   const [alarmSource, missionSource, workOrderSource] = await Promise.all([
     readFile(new URL("../components/pages/alarm-center-page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../components/pages/mission-center-page.tsx", import.meta.url), "utf8"),
+    Promise.all(
+      ["mission-center-page.tsx", "mission-center-views.tsx"].map((filename) =>
+        readFile(new URL(`../components/pages/${filename}`, import.meta.url), "utf8"),
+      ),
+    ).then((parts) => parts.join("\n")),
     readFile(new URL("../components/pages/work-order-page.tsx", import.meta.url), "utf8"),
   ]);
 

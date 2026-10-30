@@ -11,6 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from windops_backend.agents.embedding_audit import capture_embedding_usage, merge_embedding_usage
+from windops_backend.agents.knowledge_context import (
+    CONTEXT_SHA_METRIC,
+    knowledge_context_metrics,
+    knowledge_prompt_context,
+)
 from windops_backend.agents.reasoning import (
     REVIEW_COMMITTEE_AGENT,
     AlternativeBundle,
@@ -104,6 +109,14 @@ class OpenVigilWorkflowGraph:
                 "mission_id": state["mission_id"],
                 "alarm_id": state["alarm_id"],
                 "evidence_refs": [item["evidence_id"] for item in state.get("evidence", [])],
+                "retrieval_context_refs": [
+                    {
+                        "evidence_id": item["evidence_id"],
+                        "snapshot_sha256": item["metrics"][CONTEXT_SHA_METRIC],
+                    }
+                    for item in state.get("evidence", [])
+                    if CONTEXT_SHA_METRIC in item.get("metrics", {})
+                ],
             },
         )
         self.session.add(execution)
@@ -423,7 +436,10 @@ class OpenVigilWorkflowGraph:
                     f"{component.replace('_', ' ')}."
                 ),
                 source_refs=source_refs,
-                metrics={"documents_retrieved": float(len(documents))},
+                metrics={
+                    "documents_retrieved": float(len(documents)),
+                    **knowledge_context_metrics(documents),
+                },
             ).model_dump()
             first_document = next(
                 (item for item in documents if item["match_type"] == "knowledge_document"),
@@ -449,7 +465,7 @@ class OpenVigilWorkflowGraph:
             context = {
                 "turbine_id": current["turbine_id"],
                 "analysis_profile": profile,
-                "evidence": current.get("evidence", []),
+                **knowledge_prompt_context(current.get("evidence", [])),
                 **(
                     {"structural_context": current["structural_context"]}
                     if current.get("structural_context")
@@ -521,6 +537,7 @@ class OpenVigilWorkflowGraph:
                     "diagnosis": current.get("diagnosis", {}),
                     "weather": weather,
                     "condition_evidence": condition_evidence,
+                    **knowledge_prompt_context(current.get("evidence", [])),
                     **(
                         {"structural_context": current["structural_context"]}
                         if current.get("structural_context")
@@ -600,7 +617,7 @@ class OpenVigilWorkflowGraph:
                         if recommended.get("execution_plan_id") == descriptor["execution_plan_id"]
                         else None
                     ),
-                    "evidence": current.get("evidence", []),
+                    **knowledge_prompt_context(current.get("evidence", [])),
                     "diagnosis": current.get("diagnosis", {}),
                     "alternatives": current.get("alternatives", []),
                     "resources": resources,

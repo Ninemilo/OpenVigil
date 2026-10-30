@@ -64,6 +64,8 @@ RUN groupadd --gid 10001 windops \
 
 WORKDIR /app
 COPY alembic.ini requirements.container.txt ./
+# Read-only OCR identity evidence; numerical dependencies stay in the dedicated image.
+COPY requirements.document-parser.txt ./
 COPY alembic ./alembic
 COPY connector.example.json ./
 RUN windops-care-dependency-closure \

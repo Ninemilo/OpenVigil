@@ -7,7 +7,10 @@ const root = new URL("../", import.meta.url);
 test("the shell implements the tablet, laptop, and mobile interaction contracts", async () => {
   const styleFiles = (await readdir(new URL("app/styles/", root))).sort();
   const [shell, css] = await Promise.all([
-    readFile(new URL("components/layout/app-shell.tsx", root), "utf8"),
+    Promise.all([
+      readFile(new URL("components/layout/app-shell.tsx", root), "utf8"),
+      readFile(new URL("components/layout/app-shell-sidebar.tsx", root), "utf8"),
+    ]).then((parts) => parts.join("\n")),
     Promise.all(
       styleFiles.map((file) => readFile(new URL(`app/styles/${file}`, root), "utf8")),
     ).then((parts) => parts.join("\n")),

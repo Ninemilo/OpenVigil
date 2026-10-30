@@ -22,8 +22,12 @@ MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 MAX_MEMBERS = 10_000
 
 
-def stage_independent_evidence(archive: Path, evidence_dir: Path, *, hybrid: bool = False) -> None:
-    required_gates = INDEPENDENT_GATES | ({"structural_runtime"} if hybrid else set())
+def stage_independent_evidence(
+    archive: Path, evidence_dir: Path, *, hybrid: bool = False, document: bool = False
+) -> None:
+    required_gates = INDEPENDENT_GATES | ({"structural_runtime"} if hybrid or document else set())
+    if document:
+        required_gates |= {"document_runtime"}
     if not archive.is_file() or archive.is_symlink():
         raise ValueError("independent release evidence archive is missing or unsafe")
     if archive.stat().st_size <= 0 or archive.stat().st_size > MAX_ARCHIVE_BYTES:
@@ -86,8 +90,11 @@ def main() -> None:
     parser.add_argument("--archive", type=Path, required=True)
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--hybrid", action="store_true")
+    parser.add_argument("--document", action="store_true")
     args = parser.parse_args()
-    stage_independent_evidence(args.archive, args.evidence_dir, hybrid=args.hybrid)
+    stage_independent_evidence(
+        args.archive, args.evidence_dir, hybrid=args.hybrid, document=args.document
+    )
 
 
 if __name__ == "__main__":

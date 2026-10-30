@@ -1,0 +1,31 @@
+{
+  "schema_version": "openvigil.load-services-inputs.v1",
+  "parser_python": ".artifacts/improvements-20261023/parser-env/Scripts/python.exe",
+  "parser_models": ".artifacts/document-parser-20261007/models",
+  "parser_manifest_sha256": "3d2fdba8d0ad8dc7e1181e4e9f97b65d5dc788dfe57e6f8838f2402106f0e316",
+  "documents": [
+    {
+      "alias": "scan-a",
+      "workload": "backlog",
+      "user_id": "a1",
+      "pdf_path": "backend/tests/fixtures/document/scanned-zh.pdf",
+      "artifact_sha256": "b8e73740f572bad7f428ccf90279dfc91016e461d29a24059c9699f5ce19617c",
+      "size_bytes": 89521,
+      "expected_source_pages": 2,
+      "expected_passages": 15,
+      "classification": "reviewed_synthetic"
+    },
+    {
+      "alias": "scan-b",
+      "workload": "backlog",
+      "user_id": "b1",
+      "pdf_path": "backend/tests/fixtures/document/scanned-zh.pdf",
+      "artifact_sha256": "b8e73740f572bad7f428ccf90279dfc91016e461d29a24059c9699f5ce19617c",
+      "size_bytes": 89521,
+      "expected_source_pages": 2,
+      "expected_passages": 15,
+      "classification": "reviewed_synthetic"
+    }
+  ],
+  "backlog_mode": "offline_then_resume"
+}

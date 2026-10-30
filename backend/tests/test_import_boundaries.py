@@ -12,8 +12,19 @@ SOURCE_ROOT = Path(__file__).parents[1] / "src"
 PACKAGE_ROOT = SOURCE_ROOT / "windops_backend"
 PYPROJECT_PATH = Path(__file__).parents[1] / "pyproject.toml"
 PUBLIC_LIBRARY_ROOTS = frozenset({"windops_backend.benchmarks.care.online"})
-MODULE_CLI_ROOTS = frozenset({"windops_backend.operations.reasoning_eval"})
+MODULE_CLI_ROOTS = {
+    "windops_backend.operations.reasoning_eval": ("--cases", "--report"),
+    "windops_backend.operations.workflow_eval": ("run", "score"),
+}
 PROCESS_MODULE_REFERENCES = {
+    "windops_backend.operations.load_services": "scripts/run_performance_e2e.py",
+    "windops_backend.operations.load_services_setup": (
+        "src/windops_backend/operations/load_services_runtime.py"
+    ),
+    "windops_backend.operations.load_software": "scripts/run_performance_e2e.py",
+    "windops_backend.operations.load_software_server": (
+        "src/windops_backend/operations/load_software.py"
+    ),
     "windops_backend.structural_compute": "src/windops_backend/structural_process.py",
     "windops_backend.structural_dependencies": "Dockerfile.structural",
     "windops_backend.structural_tasks": "Dockerfile.structural",
@@ -24,6 +35,12 @@ PROCESS_MODULE_REFERENCES = {
         "scripts/structural_e2e_evidence.py"
     ),
     "windops_backend.operations.hybrid_release_gate": "../.github/workflows/release.yml",
+    "windops_backend.operations.document_release_gate": "../.github/workflows/release.yml",
+    "windops_backend.operations.document_smoke": (
+        "src/windops_backend/operations/document_artifact.py"
+    ),
+    "windops_backend.document_parse_compute": "src/windops_backend/document_parse_process.py",
+    "windops_backend.document_parse_tasks": "Dockerfile.document-parser",
 }
 
 
@@ -130,7 +147,7 @@ def test_all_console_script_targets_exist_and_are_callable() -> None:
 
 
 def test_module_cli_roots_have_a_working_help_entrypoint() -> None:
-    for module in MODULE_CLI_ROOTS:
+    for module, required_options in MODULE_CLI_ROOTS.items():
         result = subprocess.run(
             [sys.executable, "-m", module, "--help"],
             cwd=SOURCE_ROOT.parent,
@@ -140,8 +157,8 @@ def test_module_cli_roots_have_a_working_help_entrypoint() -> None:
             check=False,
         )
         assert result.returncode == 0, result.stderr
-        assert "--cases" in result.stdout
-        assert "--report" in result.stdout
+        for option in required_options:
+            assert option in result.stdout
 
 
 def test_every_python_source_module_is_reachable_from_a_runtime_or_public_root() -> None:

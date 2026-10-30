@@ -8,7 +8,20 @@ export interface NativeKnowledgePassage {
   readonly text: string;
   readonly source_sha256: string | null;
   readonly text_sha256: string;
+  readonly parser_version?: string;
   readonly native_locator: Readonly<Record<string, unknown>>;
+}
+
+export interface SourceDownload {
+  readonly document_id: string;
+  readonly document_version: string;
+  readonly artifact_sha256: string;
+  readonly content_type: string;
+  readonly passage_id: string | null;
+  readonly page_number: number | null;
+  readonly native_locator: Readonly<Record<string, unknown>> | null;
+  readonly download_url: string;
+  readonly expires_at: string;
 }
 
 export function knowledgeIngestionLabel(status?: string): string {

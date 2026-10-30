@@ -4,6 +4,13 @@ $sentinelFile = Join-Path $script:LocalFolder "ownership-sentinel-$([guid]::NewG
 Set-Content -LiteralPath $sentinelFile -Value 'Start-Sleep -Seconds 120'
 $record = $null
 try {
+    $mixedPath = $sentinelFile.Replace('\', '/').ToLowerInvariant()
+    if (-not (Test-LocalCheckoutCommand ('pwsh -File "' + $mixedPath + '"'))) {
+        throw 'Windows path case or separators rejected an owned command.'
+    }
+    if (Test-LocalCheckoutCommand ('pwsh -File "' + $script:LocalRoot + '-other/sentinel.ps1"')) {
+        throw 'Sibling checkout was accepted as owned.'
+    }
     $shell = (Get-Process -Id $PID).Path
     $record = Start-OwnedProcess 'ownership-test' $shell @('-NoProfile', '-File', $sentinelFile)
     if ($null -eq (Get-OwnedProcess $record)) { throw 'Sentinel was not started.' }
@@ -28,7 +35,7 @@ try {
         if (-not $rejected) { throw 'Occupied port was accepted.' }
         if (-not $listener.Server.IsBound) { throw 'Preflight affected another port owner.' }
     } finally { $listener.Stop() }
-    Write-Output 'PASS: recycled PID rejected; unrelated process preserved; owned stop idempotent; occupied port preserved.'
+    Write-Output 'PASS: Windows path variants accepted; sibling checkout rejected; recycled PID rejected; unrelated process preserved; owned stop idempotent; occupied port preserved.'
 } finally {
     if ($null -ne $record) { Stop-OwnedProcess $record }
     Remove-Item -LiteralPath $sentinelFile

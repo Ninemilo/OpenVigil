@@ -61,6 +61,10 @@ def test_model_facade_reexports_the_exact_owned_declarations() -> None:
     }
     from windops_backend.model_engineering_claim import EngineeringClaim, EngineeringClaimReview
     from windops_backend.model_knowledge_passage import KnowledgePassage
+    from windops_backend.model_knowledge_review import (
+        KnowledgeNumericReview,
+        KnowledgeNumericReviewEvent,
+    )
     from windops_backend.model_structural_workflow import (
         StructuralCaseReview,
         StructuralHealthReview,
@@ -72,6 +76,8 @@ def test_model_facade_reexports_the_exact_owned_declarations() -> None:
         **owned,
         **structural_classes,
         "KnowledgePassage": KnowledgePassage,
+        "KnowledgeNumericReview": KnowledgeNumericReview,
+        "KnowledgeNumericReviewEvent": KnowledgeNumericReviewEvent,
         "EngineeringClaim": EngineeringClaim,
         "EngineeringClaimReview": EngineeringClaimReview,
         "StructuralMissionContext": StructuralMissionContext,
@@ -80,7 +86,7 @@ def test_model_facade_reexports_the_exact_owned_declarations() -> None:
         "StructuralRetestHandoff": StructuralRetestHandoff,
     }
     owned_tables = {model.__table__.key for model in exported_classes.values()}
-    assert len(owned_tables) == 72
+    assert len(owned_tables) == 74
     assert len({model.__table__.key for model in owned.values()}) == 57
     assert owned_tables <= set(models.Base.metadata.tables)
     assert hashlib.sha256("".join(token_stream).encode()).hexdigest() == MODEL_TOKEN_SHA256

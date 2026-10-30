@@ -172,6 +172,31 @@ test("laptop sidebar defaults collapsed and persists the operator choice", async
   }
 });
 
+test("mobile navigation waits for hydration before accepting a click", async ({ browser }) => {
+  const { context, page } = await demoPage(browser, 390, 844);
+  let releaseScripts!: () => void;
+  const scriptGate = new Promise<void>((resolve) => {
+    releaseScripts = resolve;
+  });
+  await page.route(/\.(?:js|mjs)(?:\?|$)/, async (route) => {
+    await scriptGate;
+    await route.continue();
+  });
+  try {
+    await page.goto("/", { waitUntil: "commit" });
+    const menu = page.getByRole("button", { name: "打开导航" });
+    await expect(menu).toBeVisible();
+    await expect(menu).toBeDisabled();
+    releaseScripts();
+    await expect(menu).toBeEnabled();
+    await menu.click();
+    await expect(page.getByRole("dialog", { name: "主导航抽屉" })).toBeVisible();
+  } finally {
+    releaseScripts();
+    await context.close();
+  }
+});
+
 test("mobile controls and clickable rows meet the 44px target without page overflow", async ({
   browser,
 }) => {

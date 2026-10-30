@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { expect, test, type Response, type APIRequestContext } from "@playwright/test";
 import { fixtureIdentity, structuralCommand, structuralUpload } from "./structural-real-support";
+import { documentNumericReview } from "./document-review-real-support";
 
 if (process.env.WINDOPS_E2E_DOCUMENT !== "1" || process.env.WINDOPS_E2E_REAL_BACKEND !== "1") {
   throw new Error(
@@ -25,6 +27,20 @@ interface PassageRow {
   native_locator: { requires_numeric_review: boolean; regions: unknown[]; table_cell?: unknown };
 }
 
+interface ParserCapabilities {
+  docling_pdf_configured: boolean;
+  worker_health_verified: boolean;
+  worker: { status: string; heartbeat_verified: boolean; runtime_ready: boolean };
+  queue: {
+    waiting: number;
+    running: number;
+    retrying: number;
+    failed_last_24h: number;
+    oldest_waiting_age_seconds: number | null;
+    recent_failures: { document_id: string; terminal: boolean }[];
+  };
+}
+
 // Keep every known fail-closed read denial, require a real 200 within four
 // attempts, and reject all other response shapes/codes. No source data is
 // accepted from a gateway timeout or unavailable audit sink.
@@ -32,9 +48,12 @@ async function documentRead<T>(
   request: APIRequestContext,
   path: string,
   denials: string[],
+  subject?: string,
 ): Promise<T> {
   for (let attempt = 0; attempt < 4; attempt++) {
-    const response = await request.get("/api/backend/" + path, { headers: fixtureIdentity() });
+    const response = await request.get("/api/backend/" + path, {
+      headers: fixtureIdentity(subject),
+    });
     if (response.status() === 503) {
       const body = await response.json();
       if (body.error?.code === "READ_AUDIT_UNAVAILABLE") {
@@ -59,17 +78,50 @@ test("real scanned PDF queue publishes indexed source regions; failed input rema
   context,
   request,
 }) => {
-  test.setTimeout(420_000);
+  test.setTimeout(780_000);
   const rejectedAuditReads: string[] = [];
   const fixture = process.env.WINDOPS_E2E_DOCUMENT_FIXTURE!;
   const content = readFileSync(fixture);
   const artifactSha = createHash("sha256").update(content).digest("hex");
-  const capabilities = await documentRead<{
-    docling_pdf_configured: boolean;
-    worker_health_verified: boolean;
-  }>(request, "knowledge/parser-capabilities", rejectedAuditReads);
+  const readCapabilities = () =>
+    documentRead<ParserCapabilities>(request, "knowledge/parser-capabilities", rejectedAuditReads);
+  const challengeFolder = process.env.WINDOPS_E2E_CHALLENGE_FOLDER;
+  if (!challengeFolder) throw new Error("Owned document worker challenge folder is required");
+  async function workerFault(action: "stop" | "start") {
+    const id = randomUUID();
+    const path = join(challengeFolder!, `fault-request-${id}.json`);
+    writeFileSync(path + ".tmp", JSON.stringify({ id, service: "document-worker", action }));
+    renameSync(path + ".tmp", path);
+    const response = join(challengeFolder!, `fault-response-${id}.json`);
+    await expect.poll(() => existsSync(response), { timeout: 30_000 }).toBe(true);
+    expect(JSON.parse(readFileSync(response, "utf8"))).toEqual({
+      id,
+      service: "document-worker",
+      action,
+      status: "applied",
+    });
+  }
+  await expect
+    .poll(async () => (await readCapabilities()).worker_health_verified, {
+      timeout: 150_000,
+      intervals: [1000, 2000],
+    })
+    .toBe(true);
+  const capabilities = await readCapabilities();
   expect(capabilities.docling_pdf_configured).toBe(true);
-  expect(capabilities.worker_health_verified).toBe(false);
+  expect(capabilities.worker.status).toBe("ready");
+  expect(capabilities.worker.heartbeat_verified).toBe(true);
+  expect(capabilities.worker.runtime_ready).toBe(true);
+  await workerFault("stop");
+  await expect
+    .poll(async () => (await readCapabilities()).worker.status, {
+      timeout: 75_000,
+      intervals: [1000, 2000],
+    })
+    .toBe("offline");
+  const stopped = await readCapabilities();
+  expect(stopped.worker_health_verified).toBe(false);
+  expect(stopped.worker.heartbeat_verified).toBe(false);
   const browserConfigurationRejections: Response[] = [];
   page.on("response", (response) => {
     if (
@@ -141,6 +193,17 @@ test("real scanned PDF queue publishes indexed source regions; failed input rema
     rejectedAuditReads,
   );
   expect(pending.passages).toEqual([]);
+  const queuedWhileOffline = await readCapabilities();
+  expect(queuedWhileOffline.worker_health_verified).toBe(false);
+  expect(queuedWhileOffline.queue.waiting).toBeGreaterThanOrEqual(1);
+  expect(queuedWhileOffline.queue.oldest_waiting_age_seconds).not.toBeNull();
+  await workerFault("start");
+  await expect
+    .poll(async () => (await readCapabilities()).worker_health_verified, {
+      timeout: 150_000,
+      intervals: [1000, 2000],
+    })
+    .toBe(true);
   await expect
     .poll(
       async () => {
@@ -206,6 +269,9 @@ test("real scanned PDF queue publishes indexed source regions; failed input rema
       .update(await original.body())
       .digest("hex"),
   ).toBe(artifactSha);
+  const numericPassage = result.passages.find((row) => row.text.includes("+123.45 kN"));
+  expect(numericPassage).toBeDefined();
+  const numericReview = await documentNumericReview(page, context, request, numericPassage!);
   for (const path of [
     `knowledge/documents/${initial.document_id}/passages`,
     `knowledge/documents/${initial.document_id}/source`,
@@ -260,6 +326,25 @@ test("real scanned PDF queue publishes indexed source regions; failed input rema
     rejectedAuditReads,
   );
   expect(failedPassages.passages).toEqual([]);
+  const finalHealth = await readCapabilities();
+  expect(finalHealth.queue.failed_last_24h).toBe(1);
+  expect(finalHealth.queue.recent_failures).toContainEqual(
+    expect.objectContaining({
+      document_id: badId,
+      terminal: true,
+    }),
+  );
+  const restrictedHealth = await documentRead<ParserCapabilities>(
+    request,
+    "knowledge/parser-capabilities",
+    rejectedAuditReads,
+    "business-restricted",
+  );
+  expect(restrictedHealth.queue.waiting).toBe(0);
+  expect(restrictedHealth.queue.running).toBe(0);
+  expect(restrictedHealth.queue.retrying).toBe(0);
+  expect(restrictedHealth.queue.failed_last_24h).toBe(0);
+  expect(restrictedHealth.queue.recent_failures).toEqual([]);
   await page.screenshot({
     path: process.env.WINDOPS_E2E_DOCUMENT_RECEIPT!.replace(".json", ".png"),
     fullPage: true,
@@ -282,9 +367,18 @@ test("real scanned PDF queue publishes indexed source regions; failed input rema
         passage_ids: result.passages.map((row) => row.passage_id),
         source_verified: true,
         numeric_fixture_checked: true,
+        numeric_review: numericReview,
         rejected_audit_reads: rejectedAuditReads,
         ambiguous_grant_responses: ambiguousGrantResponses,
         configuration_rejections: configurationRejections,
+        worker_health: {
+          initial_ready: true,
+          forced_stop_observed_offline: true,
+          queued_while_offline: queuedWhileOffline.queue.waiting,
+          restored_ready: true,
+          failed_document_visible: true,
+          restricted_failure_count: restrictedHealth.queue.failed_last_24h,
+        },
         boundary:
           "Real OCR/PG/Redis/MinIO/Neo4j; synthetic scan and identity, deterministic embeddings; no field qualification",
       },

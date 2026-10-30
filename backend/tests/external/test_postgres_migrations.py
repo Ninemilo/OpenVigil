@@ -57,7 +57,7 @@ from windops_backend.services.operational_views import (
 
 DELEGATION_SECRET = "external-production-gateway-secret-with-at-least-forty-eight-characters"
 
-HEAD_REVISION = "0032_structural_workflow"
+HEAD_REVISION = "0033_knowledge_numeric_review"
 PREVIOUS_SUPPORTED_REVISION = "0015_alarm_command_state"
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _DATABASE_IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]{2,62}$")
@@ -73,6 +73,9 @@ REQUIRED_TIMESTAMP_COLUMNS = (
     ("knowledge_cases", "created_at"),
     ("knowledge_documents", "updated_at"),
     ("knowledge_passages", "created_at"),
+    ("knowledge_numeric_reviews", "proposed_at"),
+    ("knowledge_numeric_reviews", "reviewed_at"),
+    ("knowledge_numeric_review_events", "occurred_at"),
     ("engineering_claims", "created_at"),
     ("engineering_claim_reviews", "created_at"),
     ("structural_mission_contexts", "created_at"),

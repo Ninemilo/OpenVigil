@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from scripts.document_review_evidence import document_numeric_review_evidence
 from windops_backend.config import Settings
 from windops_backend.document_parse_contract import PARSE_CONTRACT
 from windops_backend.document_parse_identity import DOCUMENT_PARSER_VERSIONS, parser_code_identity
@@ -22,12 +23,35 @@ from windops_backend.knowledge_graph.factory import create_knowledge_graph_store
 from windops_backend.knowledge_graph.projection import KNOWLEDGE_GRAPH_PROJECTION_ID
 from windops_backend.model_knowledge_passage import KnowledgePassage
 from windops_backend.models import DomainEvent, KnowledgeDocument, ReadAccessAudit
+from windops_backend.operations.report_io import write_atomic_json
 from windops_backend.services.document_parse import PARSE_STATE_KEY
 from windops_backend.services.knowledge_contracts import (
     KNOWLEDGE_DOCUMENT_INDEX_REQUESTED,
     KNOWLEDGE_DOCUMENT_PARSE_REQUESTED,
 )
 from windops_backend.storage import OutboxEvent
+
+
+def verify_worker_health_evidence(browser: dict[str, Any]) -> dict[str, Any]:
+    """Require every actual stop, queue, recovery and access-scope assertion."""
+    health = browser.get("worker_health")
+    if not isinstance(health, dict):
+        raise RuntimeError("document evidence verification failed: worker_health_missing")
+    for key in (
+        "initial_ready",
+        "forced_stop_observed_offline",
+        "restored_ready",
+        "failed_document_visible",
+    ):
+        if health.get(key) is not True:
+            raise RuntimeError(f"document evidence verification failed: worker_health_{key}")
+    queued = health.get("queued_while_offline")
+    if type(queued) is not int or queued < 1:
+        raise RuntimeError("document evidence verification failed: worker_health_queued")
+    restricted = health.get("restricted_failure_count")
+    if type(restricted) is not int or restricted != 0:
+        raise RuntimeError("document evidence verification failed: worker_health_scope")
+    return dict(health)
 
 
 async def document_database_evidence(config: dict[str, Any], folder: Path) -> dict[str, Any]:
@@ -46,9 +70,12 @@ async def document_database_evidence(config: dict[str, Any], folder: Path) -> di
                 raise RuntimeError("Exactly two acceptance documents must persist")
             by_id = {row.id: row for row in documents}
             document, failed = by_id[ids[0]], by_id[ids[1]]
-            assert document.ingestion_status == "indexed" and document.vectorized
-            assert failed.ingestion_status == "parse_failed" and not failed.vectorized
-            assert failed.body == "" and failed.embedding is None
+            if not (document.ingestion_status == "indexed" and document.vectorized):
+                raise RuntimeError("document evidence verification failed: indexed_document")
+            if not (failed.ingestion_status == "parse_failed" and not failed.vectorized):
+                raise RuntimeError("document evidence verification failed: failed_document_status")
+            if not (failed.body == "" and failed.embedding is None):
+                raise RuntimeError("document evidence verification failed: failed_document_empty")
             pieces = list(
                 await session.scalars(
                     select(KnowledgePassage)
@@ -56,24 +83,41 @@ async def document_database_evidence(config: dict[str, Any], folder: Path) -> di
                     .order_by(KnowledgePassage.ordinal)
                 )
             )
-            assert len(pieces) == 15 and all(piece.document_id == document.id for piece in pieces)
-            assert all(
-                piece.page_number == 2 and piece.source_sha256 == browser["artifact_sha256"]
-                for piece in pieces
-            )
-            assert all(
-                piece.embedding is not None and len(piece.embedding) == 1536 for piece in pieces
-            )
-            assert sum("table_cell" in piece.native_locator for piece in pieces) == 9
+            if not (
+                len(pieces) == 15 and all(piece.document_id == document.id for piece in pieces)
+            ):
+                raise RuntimeError("document evidence verification failed: passage_ownership")
+            if not (
+                all(
+                    piece.page_number == 2 and piece.source_sha256 == browser["artifact_sha256"]
+                    for piece in pieces
+                )
+            ):
+                raise RuntimeError("document evidence verification failed: passage_source_page")
+            if not (
+                all(
+                    piece.embedding is not None and len(piece.embedding) == 1536 for piece in pieces
+                )
+            ):
+                raise RuntimeError("document evidence verification failed: passage_vectors")
+            if not (sum("table_cell" in piece.native_locator for piece in pieces) == 9):
+                raise RuntimeError("document evidence verification failed: table_cells")
             state = document.metadata_[PARSE_STATE_KEY]
-            assert state["status"] == "parsed" and state["attempts"] == 1
-            assert state["observed_execution_code_sha256"] == parser_code_identity()
-            assert state["observed_library_versions"] == DOCUMENT_PARSER_VERSIONS
-            assert (
+            if not (state["status"] == "parsed" and state["attempts"] == 1):
+                raise RuntimeError(
+                    "document evidence verification failed: successful_parse_attempt"
+                )
+            if not (state["observed_execution_code_sha256"] == parser_code_identity()):
+                raise RuntimeError("document evidence verification failed: execution_code")
+            if not (state["observed_library_versions"] == DOCUMENT_PARSER_VERSIONS):
+                raise RuntimeError("document evidence verification failed: numerical_versions")
+            if not (
                 state["identity"]["model_manifest_sha256"]
                 == config["document_parser_model_manifest_sha256"]
-            )
-            assert document.metadata_["_openvigil_source_layout"]["unextracted_pages"] == [1]
+            ):
+                raise RuntimeError("document evidence verification failed: model_manifest")
+            if not (document.metadata_["_openvigil_source_layout"]["unextracted_pages"] == [1]):
+                raise RuntimeError("document evidence verification failed: unextracted_pages")
             # Reconstruct from real JSONB values/immutable rows, not the transient wire output.
             result = {
                 "contract": PARSE_CONTRACT,
@@ -107,8 +151,10 @@ async def document_database_evidence(config: dict[str, Any], folder: Path) -> di
                     for piece in pieces
                 ],
             }
-            assert state["result_hash_contract"] == DOCUMENT_RESULT_HASH_CONTRACT
-            assert document_parse_result_hash(result) == state["result_sha256"]
+            if not (state["result_hash_contract"] == DOCUMENT_RESULT_HASH_CONTRACT):
+                raise RuntimeError("document evidence verification failed: hash_contract")
+            if not (document_parse_result_hash(result) == state["result_sha256"]):
+                raise RuntimeError("document evidence verification failed: persisted_result_hash")
             jobs = list(
                 await session.scalars(
                     select(OutboxEvent).where(
@@ -119,21 +165,32 @@ async def document_database_evidence(config: dict[str, Any], folder: Path) -> di
                     )
                 )
             )
-            assert len(jobs) == 3
+            if not (len(jobs) == 3):
+                raise RuntimeError("document evidence verification failed: outbox_count")
             succeeded = [row for row in jobs if row.aggregate_id == document.id]
-            assert len(succeeded) == 2 and all(
-                row.status == "succeeded" and row.attempts == 1 for row in succeeded
-            )
+            if not (
+                len(succeeded) == 2
+                and all(row.status == "succeeded" and row.attempts == 1 for row in succeeded)
+            ):
+                raise RuntimeError(
+                    "document evidence verification failed: successful_outbox_attempts"
+                )
             rejected = [row for row in jobs if row.aggregate_id == failed.id]
-            assert (
+            if not (
                 len(rejected) == 1 and rejected[0].status == "failed" and rejected[0].attempts == 3
-            )
-            assert rejected[0].last_error == "DocumentParseFailure"
+            ):
+                raise RuntimeError("document evidence verification failed: failed_outbox_attempts")
+            if not (rejected[0].last_error == "DocumentParseFailure"):
+                raise RuntimeError("document evidence verification failed: failure_class")
             events = list(
                 await session.scalars(select(DomainEvent).where(DomainEvent.aggregate_id.in_(ids)))
             )
-            assert sum(row.event_type == "knowledge.document.parsed" for row in events) == 1
-            assert sum(row.event_type == "knowledge.document.parse.failed" for row in events) == 3
+            if not (sum(row.event_type == "knowledge.document.parsed" for row in events) == 1):
+                raise RuntimeError("document evidence verification failed: parsed_event_count")
+            if not (
+                sum(row.event_type == "knowledge.document.parse.failed" for row in events) == 3
+            ):
+                raise RuntimeError("document evidence verification failed: failed_event_count")
             for _ in range(30):
                 audit_count = int(
                     await session.scalar(
@@ -151,6 +208,7 @@ async def document_database_evidence(config: dict[str, Any], folder: Path) -> di
             artifacts = [
                 {"uri": row.artifact_uri, "sha256": row.artifact_sha256} for row in documents
             ]
+            numeric_review = await document_numeric_review_evidence(session, browser, pieces)
         settings = Settings(
             **{"_env_file": None, **{k: v for k, v in config.items() if k != "fixture"}}
         )
@@ -165,22 +223,35 @@ async def document_database_evidence(config: dict[str, Any], folder: Path) -> di
                 await asyncio.sleep(1)
             else:
                 raise RuntimeError("Real Neo4j projection did not publish all OCR passages")
-            assert snapshot is not None
+            if not (snapshot is not None):
+                raise RuntimeError("document evidence verification failed: graph_snapshot")
             for piece in pieces:
                 node = nodes[piece.id]
-                assert node.node_type is NodeType.KNOWLEDGE_PASSAGE
-                assert node.properties["body"] == piece.text
-                assert node.properties["sourceSha256"] == piece.source_sha256
-                assert node.properties["textSha256"] == piece.text_sha256
-                assert json.loads(str(node.properties["nativeLocator"])) == piece.native_locator
-            assert not any(
-                node.node_type is NodeType.KNOWLEDGE_PASSAGE
-                and (
-                    node.entity_id == f"{failed.id}#body"
-                    or node.properties.get("documentId") == failed.id
+                if node.node_type is not NodeType.KNOWLEDGE_PASSAGE:
+                    raise RuntimeError("document evidence verification failed: graph_node_type")
+                if not (node.properties["body"] == piece.text):
+                    raise RuntimeError("document evidence verification failed: graph_text")
+                if not (node.properties["sourceSha256"] == piece.source_sha256):
+                    raise RuntimeError("document evidence verification failed: graph_source_hash")
+                if not (node.properties["textSha256"] == piece.text_sha256):
+                    raise RuntimeError("document evidence verification failed: graph_text_hash")
+                if not (json.loads(str(node.properties["nativeLocator"])) == piece.native_locator):
+                    raise RuntimeError(
+                        "document evidence verification failed: graph_native_locator"
+                    )
+            if not (
+                not any(
+                    node.node_type is NodeType.KNOWLEDGE_PASSAGE
+                    and (
+                        node.entity_id == f"{failed.id}#body"
+                        or node.properties.get("documentId") == failed.id
+                    )
+                    for node in snapshot.nodes
                 )
-                for node in snapshot.nodes
-            )
+            ):
+                raise RuntimeError(
+                    "document evidence verification failed: failed_document_absent_from_graph"
+                )
             graph = {
                 "backend": "neo4j",
                 "nodes": len(snapshot.nodes),
@@ -191,6 +262,13 @@ async def document_database_evidence(config: dict[str, Any], folder: Path) -> di
             }
         finally:
             await store.close()
+        worker_health = verify_worker_health_evidence(browser)
+        parsed_result_path = folder / "document-parsed-result.json"
+        if parsed_result_path.exists() or parsed_result_path.is_symlink():
+            raise ValueError("document acceptance result already exists or is unsafe")
+        write_atomic_json(
+            parsed_result_path, result, symlink_error=ValueError("unsafe result path")
+        )
         return {
             "counts": {
                 "scenario_documents": 2,
@@ -200,11 +278,17 @@ async def document_database_evidence(config: dict[str, Any], folder: Path) -> di
             },
             "result_sha256": state["result_sha256"],
             "jsonb_result_reconstructed": True,
+            "parsed_result_artifact": parsed_result_path.name,
+            "source_sha256": document.artifact_sha256,
+            "model_manifest_sha256": state["identity"]["model_manifest_sha256"],
+            "execution_code_sha256": state["observed_execution_code_sha256"],
             "parse_attempts": {document.id: 1, failed.id: 3},
             "observed_versions": state["observed_library_versions"],
             "manager_read_audits": audit_count,
             "artifacts": artifacts,
             "graph": graph,
+            "worker_health": worker_health,
+            "numeric_review": numeric_review,
         }
     finally:
         await engine.dispose()

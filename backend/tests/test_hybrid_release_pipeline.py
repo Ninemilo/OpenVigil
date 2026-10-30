@@ -23,7 +23,12 @@ def test_release_pipeline_requires_both_digest_bound_images_and_final_bundle_gat
     scans = [
         step for step in steps if step.get("with", {}).get("output", "").endswith("image-scan.json")
     ]
-    assert len(scans) == 2
+    assert len(scans) == 3
+    assert {step["with"]["output"] for step in scans} == {
+        "release-evidence/image-scan.json",
+        "release-evidence/structural/image-scan.json",
+        "release-evidence/document/image-scan.json",
+    }
     assert all(
         step["with"]["severity"] == "CRITICAL,HIGH"
         and step["with"]["ignore-unfixed"] is False
@@ -54,6 +59,12 @@ def test_release_pipeline_requires_both_digest_bound_images_and_final_bundle_gat
         "--qualification-output release-evidence/hybrid-release-qualification.json" in final["run"]
     )
     assert ".api_gate_count == 11" in final["run"]
+    document_final = next(
+        step
+        for step in steps
+        if "windops_backend.operations.document_release_gate" in step.get("run", "")
+    )
+    assert steps.index(document_final) > steps.index(final)
 
 
 @pytest.mark.parametrize("include_structural", [False, True])

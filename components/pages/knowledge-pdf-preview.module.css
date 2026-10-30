@@ -1,0 +1,107 @@
+/* finesse · component: pdf-source-preview · register=product
+ * states: default · hover · focus-visible · active · disabled · loading · error · success
+ * tokens: inherited (app/styles/01-foundations.css and shared Button) */
+.preview {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--foreground);
+  overflow: clip;
+}
+.toolbar,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+}
+.control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-secondary);
+  color: var(--foreground-muted);
+}
+.control select {
+  min-height: 44px;
+  min-width: 72px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  background: var(--surface);
+  font: inherit;
+}
+.control select:focus-visible,
+.viewport:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -3px;
+}
+.action {
+  min-height: 44px;
+  white-space: nowrap;
+}
+.control select:disabled,
+.action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.control select:active {
+  border-color: var(--primary);
+}
+@media (hover: hover) {
+  .control select:hover:not(:disabled) {
+    border-color: var(--primary);
+  }
+}
+.status {
+  margin: 0;
+  min-height: 2lh;
+  padding: 0 12px 8px;
+  font-size: var(--font-secondary);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.actions {
+  padding-top: 0;
+}
+.viewport {
+  max-width: 100%;
+  min-height: 180px;
+  max-height: 680px;
+  overflow: auto;
+  padding: 12px;
+  background: var(--surface-subtle);
+}
+.page {
+  position: relative;
+  width: max-content;
+  margin: 0 auto;
+  line-height: 0;
+}
+.page canvas {
+  display: block;
+}
+.highlight {
+  position: absolute;
+  border: 2px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  pointer-events: none;
+}
+.caption {
+  margin: 0;
+  padding: 10px 12px;
+  line-height: 1.6;
+  font-size: var(--font-secondary);
+  color: var(--foreground-muted);
+}
+@media (max-width: 480px) {
+  .viewport {
+    max-height: 480px;
+  }
+  .toolbar {
+    gap: 6px;
+  }
+}

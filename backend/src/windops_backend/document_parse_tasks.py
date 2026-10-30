@@ -1,18 +1,53 @@
 """Independent document-parse queue; parsing uses a second isolated Python."""
 
 import asyncio
+from typing import Any
 
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
+from dramatiq.middleware import Middleware
 from minio import Minio
 
 from windops_backend.config import get_settings
 from windops_backend.db import create_engine, create_session_factory
+from windops_backend.document_worker_health import DocumentWorkerHealth, ObservedDocumentConsumer
 from windops_backend.outbox import redelivery_retry_delay_ms
 from windops_backend.services.document_parse import process_document_parse_event
 from windops_backend.storage import MinioArtifactVerifier
 
-dramatiq.set_broker(RedisBroker(url=get_settings().redis_url))  # type: ignore[no-untyped-call]
+
+class DocumentHealthMiddleware(DocumentWorkerHealth, Middleware):
+    """Keep the broker middleware dependency in the dedicated worker entrypoint."""
+
+
+class DocumentRedisBroker(RedisBroker):
+    def __init__(self, health: DocumentWorkerHealth) -> None:
+        self.document_health = health
+        super().__init__(url=health.settings.redis_url)  # type: ignore[no-untyped-call]
+        self.add_middleware(health)  # type: ignore[no-untyped-call]
+
+    def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 5000) -> Any:
+        consumer = super().consume(queue_name, prefetch=prefetch, timeout=timeout)  # type: ignore[no-untyped-call]
+        return ObservedDocumentConsumer(consumer, self.document_health, queue_name)
+
+    def _dispatch(self, command: str) -> Any:
+        dispatch = super()._dispatch(command)  # type: ignore[no-untyped-call]
+        if command not in {"fetch", "ack", "nack", "requeue"}:
+            return dispatch
+
+        def observed(queue_name: str, *args: Any) -> Any:
+            try:
+                result = dispatch(queue_name, *args)
+            except Exception:
+                self.document_health.observe_poll(queue_name, False)
+                raise
+            self.document_health.observe_poll(queue_name, True)
+            return result
+
+        return observed
+
+
+dramatiq.set_broker(DocumentRedisBroker(DocumentHealthMiddleware(get_settings())))
 
 
 @dramatiq.actor(

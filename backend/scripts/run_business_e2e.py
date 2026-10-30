@@ -37,13 +37,46 @@ ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
 
 
-def signal_owned_process_group(pid: int) -> None:
+def summarize_browser_evidence(path: Path) -> dict[str, Any]:
+    raw = path.read_bytes()
+    if len(raw) > 8 * 1024 * 1024:
+        raise ValueError("Business browser JUnit is unsafe or exceeds its bound")
+    # Playwright writes UTF-8. Decode before the declaration check so UTF-16/32
+    # cannot bypass it with interleaved NUL bytes and expand internal entities.
+    decoded = raw.decode("utf-8-sig")
+    if "\x00" in decoded or "<!DOCTYPE" in decoded or "<!ENTITY" in decoded:
+        raise ValueError("Business browser JUnit contains an unsafe declaration or encoding")
+    junit = ET.fromstring(decoded)
+    if junit.tag not in {"testsuite", "testsuites"}:
+        raise ValueError("Business browser evidence requires a JUnit suite")
+    cases = junit.findall(".//testcase")
+    if (
+        len(cases) != 1
+        or not cases[0].get("name")
+        or any(junit.findall(f".//{tag}") for tag in ("failure", "error", "skipped"))
+    ):
+        raise ValueError("Business browser evidence must contain one successful non-skipped test")
+    for suite in [junit, *junit.findall(".//testsuite")]:
+        if any(int(suite.get(name, "0")) != 0 for name in ("failures", "errors", "skipped")):
+            raise ValueError("Business browser JUnit reports failure or skipped tests")
+    return {
+        "tests": 1,
+        "passed": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "junit_sha256": hashlib.sha256(raw).hexdigest(),
+    }
+
+
+def signal_owned_process_group(pid: int, *, force: bool = False) -> None:
     if os.name == "nt":
         raise RuntimeError("Windows child cleanup requires taskkill")
     # Windows type stubs omit this POSIX API; resolve it only in the POSIX branch.
     method_name = "killpg"
     signal_group = cast(Callable[[int, int], None], getattr(os, method_name))
-    signal_group(pid, signal.SIGTERM)
+    signal_name = "SIGKILL" if force else "SIGTERM"
+    signal_group(pid, int(getattr(signal, signal_name)))
 
 
 def available_port() -> int:
@@ -90,6 +123,9 @@ def compose_definition(password: str) -> dict[str, Any]:
     source = cast(dict[str, Any], parsed)
     source["services"].pop("minio-init")
     services = source["services"]
+    for service in services.values():
+        if "build" in service:
+            service["build"]["context"] = str(BACKEND)
     for service, ports in {
         "postgres": [5432],
         "redis": [6379],
@@ -207,6 +243,8 @@ def main() -> None:
         "passed": False,
         "cleanup_passed": False,
         "scenario": scenario,
+        "ci_run_id": os.environ.get("GITHUB_RUN_ID"),
+        "ci_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
         "boundary": (
             "Real Worker/FastAPI/PostgreSQL/Redis/MinIO/Neo4j and asynchronous workers; "
             "synthetic observations, deterministic diagnosis and embeddings, "
@@ -268,6 +306,7 @@ def main() -> None:
     env["PYTHONPATH"] = os.pathsep.join([str(BACKEND / "src"), str(BACKEND / "scripts")])
     env["WINDOPS_ENVIRONMENT"] = "test"
     env["WINDOPS_AGENT_MODE"] = "deterministic"
+    env["PLAYWRIGHT_JUNIT_OUTPUT_FILE"] = str(folder / "browser.xml")
     password = secrets.token_hex(24)
     compose = folder / "compose.json"
     compose.write_text(json.dumps(compose_definition(password)))
@@ -276,21 +315,31 @@ def main() -> None:
     logs: list[Any] = []
     stopped_workers: set[int] = set()
     structural_worker: subprocess.Popen[bytes] | None = None
+    document_worker: subprocess.Popen[bytes] | None = None
     challenges: Any = None
     creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
     def run(args: list[str], log_name: str, *, cwd: Path = ROOT, timeout: int = 300) -> None:
         with (folder / log_name).open("ab") as output:
-            subprocess.run(
-                args,
-                cwd=cwd,
-                env=env,
-                stdout=output,
-                stderr=subprocess.STDOUT,
-                timeout=timeout,
-                check=True,
-                creationflags=creationflags,
-            )
+            try:
+                subprocess.run(
+                    args,
+                    cwd=cwd,
+                    env=env,
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                    timeout=timeout,
+                    check=True,
+                    creationflags=creationflags,
+                )
+            except subprocess.CalledProcessError as exc:
+                # Public verdicts identify the stage without uploading command
+                # arguments or private logs containing temporary credentials.
+                report["command_failure"] = {"stage": log_name, "exit_code": exc.returncode}
+                raise
+            except subprocess.TimeoutExpired:
+                report["command_failure"] = {"stage": log_name, "timed_out": True}
+                raise
 
     def start(
         args: list[str],
@@ -351,6 +400,33 @@ def main() -> None:
             signal_owned_process_group(structural_worker.pid)
         structural_worker.wait(timeout=15)
         stopped_workers.add(structural_worker.pid)
+
+    def start_document_worker() -> None:
+        nonlocal document_worker
+        if document_worker is not None and document_worker.poll() is None:
+            raise RuntimeError("Document worker is already running")
+        document_worker = start(
+            [sys.executable, str(BACKEND / "scripts/business_e2e_runtime.py"), "document-worker"],
+            f"document-worker-{len(stopped_workers)}.log",
+            process_env={"WINDOPS_E2E_PROCESS_KIND": "document"},
+        )
+
+    def stop_document_worker() -> None:
+        if document_worker is None or document_worker.poll() is not None:
+            raise RuntimeError("Expected the owned document worker to be running")
+        # Abrupt termination verifies lease expiry, without graceful heartbeat
+        # removal masking a dead process. Only this fresh owned process group.
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(document_worker.pid), "/T", "/F"],
+                check=True,
+                capture_output=True,
+                creationflags=creationflags,
+            )
+        else:
+            signal_owned_process_group(document_worker.pid, force=True)
+        document_worker.wait(timeout=15)
+        stopped_workers.add(document_worker.pid)
 
     try:
         report["commit"] = subprocess.check_output(
@@ -567,10 +643,17 @@ def main() -> None:
         if structural:
             start_structural_worker()
         if document:
-            start(
-                [sys.executable, script, "document-worker"],
-                "document-worker.log",
-                process_env={"WINDOPS_E2E_PROCESS_KIND": "document"},
+            start_document_worker()
+            env["WINDOPS_E2E_CHALLENGE_FOLDER"] = str(folder)
+            from structural_scope_evidence import OwnedInfrastructureChallenges
+
+            challenges = OwnedInfrastructureChallenges(
+                folder,
+                docker,
+                project,
+                stop_document_worker,
+                start_document_worker,
+                worker_service="document-worker",
             )
         if scenario == "structural-scope":
             from structural_scope_evidence import OwnedInfrastructureChallenges
@@ -594,21 +677,20 @@ def main() -> None:
                     "document": "tests/e2e/document-cross-layer.spec.ts",
                 }[scenario],
                 "--retries=0",
-                *(
-                    ["--reporter=line,junit,./scripts/playwright-no-skips-reporter.mjs"]
-                    if structural or document
-                    else []
-                ),
+                "--reporter=line,junit,./scripts/playwright-no-skips-reporter.mjs",
             ],
             "browser.log",
             cwd=ROOT,
         )
         if challenges is not None:
-            deadline = time.monotonic() + 600
+            challenge_timeout = 840 if document else 600
+            deadline = time.monotonic() + challenge_timeout
             while browser.poll() is None:
                 challenges.handle_pending()
                 if time.monotonic() >= deadline:
-                    raise subprocess.TimeoutExpired("structural scope browser", 600)
+                    raise subprocess.TimeoutExpired(
+                        "owned worker challenge browser", challenge_timeout
+                    )
                 time.sleep(0.2)
             browser_code = browser.returncode
         else:
@@ -624,21 +706,14 @@ def main() -> None:
             for child in children
         ):
             raise RuntimeError("A business service exited unexpectedly")
+        report["browser_tests"] = summarize_browser_evidence(folder / "browser.xml")
         if document:
             from document_e2e_evidence import document_database_evidence
 
-            junit = ET.parse(folder / "browser.xml").getroot()
-            if len(junit.findall(".//testcase")) != 1 or any(
-                junit.findall(f".//{tag}") for tag in ("failure", "error", "skipped")
-            ):
-                raise RuntimeError("Document browser evidence must contain one successful test")
             report["database"] = asyncio.run(document_database_evidence(config, folder))
         elif structural:
             from structural_e2e_evidence import structural_database_evidence
 
-            junit = ET.parse(folder / "browser.xml").getroot()
-            assert len(junit.findall(".//testcase")) == 1
-            assert not any(junit.findall(f".//{tag}") for tag in ("failure", "error", "skipped"))
             if scenario == "structural-scope":
                 from structural_scope_evidence import scope_database_evidence
 
@@ -718,10 +793,11 @@ def main() -> None:
         # Saved local-development stacks, credentials and data volumes are untouched.
         try:
             run(docker + ["down", "--volumes", "--remove-orphans"], "cleanup.log")
-            assert not subprocess.check_output(
+            remaining = subprocess.check_output(
                 docker + ["ps", "--all", "--quiet"], env=env, creationflags=creationflags
             ).strip()
-            assert all(child.poll() is not None for child in children)
+            if remaining or any(child.poll() is None for child in children):
+                raise RuntimeError("Owned business services did not stop")
             report["cleanup_passed"] = not cleanup_errors
         except Exception as exc:
             report["cleanup_error"] = type(exc).__name__

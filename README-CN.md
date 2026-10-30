@@ -40,6 +40,10 @@
 
 产品统一定位为“风电智能运维平台”。登录页图片与 Demo 风场只代表展示场景，不限定业务范围，也不构成现场接入或生产验收证据。
 
+当前版本、未完成项、阻塞条件与验证入口见 [当前状态](CURRENT_STATUS.md)。
+
+**历史验收快照（2026-10-07/08）。** 以下段落记录当时的仓库核对与验收边界。
+
 本文于 **2026-10-08** 按当前仓库核对。现阶段在既有风机运维闭环上优先面向**陆上混塔**，已实现结构监测、受控复测闭环与独立 PDF/OCR 知识入库。2026-10-07 文档解析最新验收状态为 `COMPLETE_LOCAL_SOFTWARE_VERIFIED`，覆盖本地软件和隔离 Linux 执行；现场精度、真实校准与规程、影子运行和正式发布资格仍为 `UNVERIFIED`。[执行进度](EXECUTION_PROGRESS.md) 区分当前结论与历史快照。
 
 ## 安装
@@ -99,7 +103,7 @@ alembic upgrade head
 windops-reference-import --reference-pack wt023
 ```
 
-当前唯一迁移头为 `0032_structural_workflow`；可在 `backend` 目录运行 `python scripts/verify_migration_head.py` 核对迁移图与文档声明。
+当前唯一迁移头为 `0033_knowledge_numeric_review`；可在 `backend` 目录运行 `python scripts/verify_migration_head.py` 核对迁移图与文档声明。
 
 参考数据导入会提示输入 `operations_manager` 密钥。随后可在四个独立终端启动 outbox relay、Dramatiq worker、读审计 worker 和 API：
 
@@ -408,6 +412,8 @@ pnpm test:e2e:business
 部署浏览器直传时，在 Worker 配置 `WINDOPS_ARTIFACT_UPLOAD_ORIGINS` 为后端签发上传地址的确切 HTTPS origin（多个用逗号分隔），并在对象存储配置允许应用 origin 的 PUT/CORS。默认 CSP 只允许同源连接；配置不接受通配符、路径、凭据或 CSP 指令，非法值在业务请求执行前返回 503。仅当页面和存储均为 `http://127.0.0.1` 时允许本地 HTTP，供上述隔离测试使用。
 
 ### 本地用户性能测量
+
+有界多用户查询、文档负载、资源观测及 software/services 场景见 [性能评测说明](backend/PERFORMANCE_EVALUATION.md)。下方既有 `pnpm measure:performance` 流程保留原本的本地浏览器/API 测量行为。
 
 先按“可重复的 Windows 本地启动”启动隔离栈，再在仓库根目录执行：
 

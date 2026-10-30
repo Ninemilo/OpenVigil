@@ -1,10 +1,28 @@
-# OpenVigil 混塔风电运维智能体平台执行目标
+# 当前目标：代码结构重构（2026-10-29）
+
+状态：**COMPLETE_LOCAL_SOFTWARE_VERIFIED**。用户 `/goal`：重构当前项目代码，让结构更清晰。本轮已完成任务中心与后端推理模块的职责拆分，保留现有行为、权限、幂等、审计及兼容入口；311项Node、388项后端及96项浏览器测试通过，构建、类型、lint、格式与原包体/覆盖率门槛通过。
+
+实施计划与报告为仅本地文档：`docs/refactor/REFACTOR_PLAN-2026-10-29.md`、`docs/refactor/REFACTOR_REPORT-2026-10-29.md`。逐项记录见 `EXECUTION_PROGRESS.md` 顶部，总收据位于 `.artifacts/refactor-20261029/verification-receipt-v1.json`。保护全部既有未提交成果及HEAD/index/根`.env`；无新增依赖、数据库迁移、提交、推送、付费调用或生产部署。下方项目改进的外部验收待办保留，不因本轮本地结构验证变为通过。
+
+---
+
+# OpenVigil 项目改进执行目标（2026-10-23）
+
+当前目标为完整执行 [项目改进建议](docs/project-improvement-recommendations-2026-10-23.md) 的八项改进及状态入口整理。完整条件见 [实施与验收矩阵](docs/improvement-execution-2026-10-23.md)，简短索引见 [当前状态](CURRENT_STATUS.md)；唯一活动状态为 `EXECUTION_PROGRESS.md` 顶部。不得以局部测试替代远端 CI、真实场景、现场精度或正式发布资格。
+
+按 P0 → P1 → P2 推进：CI 冻结与 CARE/同提交远端检查；OCR 独立发布；混塔/OCR CI；异步运行健康；真实工作流评测；证据复核；并发性能；有边界的模块拆分。外部依赖未就绪时保留该项，继续可独立完成的后续工程工作，不缩减原目标。每个独立项实现、验证后及时记录证据和剩余缺口。
+
+保护起点 HEAD `bc88d45080ef0cb0cbe446695e862755cf8e4edb`、37 个已有修改/新增文件、Git index、根 `.env`、历史收据和非本任务服务。原文件副本和摘要保存在 `.artifacts/improvements-20261023/`。现有代码与正确行为保持，数据库改动必须有迁移；不自动提交、推送、部署生产或无限调用付费模型。需要外部输入、评测预算或远端写入时，以准备好的具体结果为依据处理。
+
+---
+
+# 历史目标：OpenVigil 混塔风电运维智能体平台
 
 ## 当前增量阶段（2026-10-07）
 
 兼容性收尾状态：COMPLETE_LOCAL_SOFTWARE_VERIFIED。原生v1旧键哈希与省略/显式native重放兼容、撤权重放拒绝已验证；当前八模块80项（含13专项）、实际服务与Linux204安装源码重验通过。最终收据为 `.artifacts/document-parser-20261007/software-verification-receipt-v2.json`；首轮验收及历史收据保留其原快照。
 
-本次用户再次 `/goal` 授权继续按原技术方案开发。已有首版与重构落在 HEAD `6c5721b`；本次补齐独立 Docling/OCR、表格/页面来源与受控异步知识入库，状态为 COMPLETE_LOCAL_SOFTWARE_VERIFIED。当前源码实际服务与Linux隔离探针、相关回归及保护/清理核对通过，具体任务与验收见 [本次实施任务](docs/design/document-parser-implementation-2026-10-07.md)、[本次软件验收](docs/reports/document-parser-software-acceptance-2026-10-07.md)。现场精度、条件性科学研究与正式发布仍按实际前提验证，历史收据和发布阻断保留。当前进度以 `EXECUTION_PROGRESS.md` 顶部为准。
+本次用户再次 `/goal` 授权继续按原技术方案开发。已有首版与重构落在 HEAD `6c5721b`；本次补齐独立 Docling/OCR、表格/页面来源与受控异步知识入库，状态为 COMPLETE_LOCAL_SOFTWARE_VERIFIED。当前源码实际服务与Linux隔离探针、相关回归及保护/清理核对通过，具体任务与验收见 本次实施任务（本地文件：`docs/design/document-parser-implementation-2026-10-07.md`）、本次软件验收（本地文件：`docs/reports/document-parser-software-acceptance-2026-10-07.md`）。现场精度、条件性科学研究与正式发布仍按实际前提验证，历史收据和发布阻断保留。当前进度以 `EXECUTION_PROGRESS.md` 顶部为准。
 
 开始日期：2026-10-05（北京时间）。当前用户 `/goal` 授权按照本地 `docs/design/hybrid-tower-operations-agent-technical-plan.md` 开发；参考源码在 `C:\coding\reference`，只读使用。用户确认先实现软件，试点资料后续提供。
 

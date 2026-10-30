@@ -1,14 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent, MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { MouseEvent } from "react";
 import {
   ArrowRight,
   BookMarked,
-  Bot,
   CheckCircle2,
   Database,
-  FileCheck2,
   FileSearch,
   Filter,
   Layers3,
@@ -16,10 +14,8 @@ import {
   Link2,
   LoaderCircle,
   Search,
-  Send,
   ShieldAlert,
   Sparkles,
-  Upload,
   X,
 } from "lucide-react";
 import type { LegacyColumnDef } from "@tanstack/react-table/legacy";
@@ -30,47 +26,31 @@ import { StatusBadge } from "@/components/data-display/status-badge";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/primitives";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { apiGet } from "@/lib/api-client";
 import { failureCases } from "@/lib/archive-data";
-import {
-  DEFAULT_KNOWLEDGE_QUESTION,
-  type KnowledgeAssistantAnswer,
-  type SourceCitation,
-} from "@/lib/knowledge-assistant";
+import type { SourceCitation } from "@/lib/knowledge-assistant";
 import { knowledgeDocuments } from "@/lib/knowledge-data";
 import { featuredMission } from "@/lib/operations-data";
 import type { KnowledgeDocument, KnowledgeDocumentType } from "@/lib/types";
 import { useAccessibleDialog } from "@/lib/use-accessible-dialog";
 import { useDemoWorkflow } from "@/lib/use-demo-workflow";
-import { knowledgeIngestionLabel, knowledgeSourceLocation } from "@/lib/knowledge-source";
-import { StructuralArtifactCommand as KnowledgeArtifactCommand } from "@/lib/structural-artifact-command";
+import { knowledgeIngestionLabel } from "@/lib/knowledge-source";
 import { KnowledgeCitationDrawer, KnowledgeSourceViewer } from "./knowledge-source-viewer";
+import { KnowledgeParserHealth, useKnowledgeParserHealth } from "./knowledge-parser-health";
+
+import { KnowledgeAssistantPanel } from "./knowledge-assistant-panel";
+import {
+  KnowledgeUploadActions,
+  KnowledgeUploadFeedback,
+  useKnowledgeUpload,
+} from "./knowledge-upload";
 
 import styles from "./knowledge-base-page.module.css";
-
-interface AssistantSuccessEnvelope {
-  readonly ok: true;
-  readonly data: { readonly answer: KnowledgeAssistantAnswer };
-  readonly error: null;
-  readonly meta: {
-    readonly deterministic: boolean;
-    readonly retrievalMode:
-      | "deterministic-d1-passage-retrieval"
-      | "fixture-passage-fallback"
-      | "production-pgvector-neo4j-hybrid";
-    readonly realEmbedding: boolean;
-  };
-}
 
 interface KnowledgeDocumentsEnvelope {
   readonly data: {
     readonly documents: readonly KnowledgeDocument[];
   };
-}
-
-interface KnowledgeParserCapabilities {
-  readonly docling_pdf_configured: boolean;
-  readonly max_artifact_bytes: number;
 }
 
 const typeLabel: Record<KnowledgeDocumentType, string> = {
@@ -86,19 +66,6 @@ const typeLabel: Record<KnowledgeDocumentType, string> = {
 };
 
 const availableTypes = [...new Set(knowledgeDocuments.map((document) => document.type))].sort();
-
-function isAssistantSuccess(value: unknown): value is AssistantSuccessEnvelope {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const envelope = value as Partial<AssistantSuccessEnvelope>;
-  return (
-    envelope.ok === true &&
-    envelope.error === null &&
-    typeof envelope.data?.answer?.answer?.summary === "string" &&
-    Array.isArray(envelope.data.answer.citations) &&
-    typeof envelope.meta?.deterministic === "boolean" &&
-    typeof envelope.meta.realEmbedding === "boolean"
-  );
-}
 
 const formatDate = (value: string): string =>
   !Number.isFinite(Date.parse(value))
@@ -123,6 +90,13 @@ function DocumentDrawer({
   readonly onClose: () => void;
 }) {
   const dialogRef = useAccessibleDialog<HTMLElement>(onClose);
+  const attributes = [
+    ["版本", document.version],
+    ["制造商", document.manufacturer ?? "内部资料"],
+    ["页数", document.pageCount === null ? "未提供" : `${document.pageCount} 页`],
+    ["语言", document.language],
+    ["更新日期", formatDate(document.updatedAt)],
+  ] as const;
 
   return (
     <>
@@ -189,26 +163,12 @@ function DocumentDrawer({
           <section className={styles.drawerSection}>
             <h3>文档属性</h3>
             <dl>
-              <div>
-                <dt>版本</dt>
-                <dd>{document.version}</dd>
-              </div>
-              <div>
-                <dt>制造商</dt>
-                <dd>{document.manufacturer ?? "内部资料"}</dd>
-              </div>
-              <div>
-                <dt>页数</dt>
-                <dd>{document.pageCount === null ? "未提供" : `${document.pageCount} 页`}</dd>
-              </div>
-              <div>
-                <dt>语言</dt>
-                <dd>{document.language}</dd>
-              </div>
-              <div>
-                <dt>更新日期</dt>
-                <dd>{formatDate(document.updatedAt)}</dd>
-              </div>
+              {attributes.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
             </dl>
           </section>
 
@@ -233,31 +193,6 @@ function DocumentDrawer({
   );
 }
 
-function CitationButton({
-  citation,
-  onOpen,
-}: {
-  readonly citation: SourceCitation;
-  readonly onOpen: (citation: SourceCitation) => void;
-}) {
-  return (
-    <button className={styles.citation} type="button" onClick={() => onOpen(citation)}>
-      <span>
-        <FileCheck2 size={14} /> {citation.docId} ·{" "}
-        {knowledgeSourceLocation({
-          page_number: citation.page,
-          native_locator: citation.nativeLocator ?? {},
-        })}
-      </span>
-      <strong>{citation.title}</strong>
-      <small>{citation.summary}</small>
-      <em>
-        打开来源 <ArrowRight size={12} />
-      </em>
-    </button>
-  );
-}
-
 export function KnowledgeBasePage({ runtimeMode }: { runtimeMode: "demo" | "production" }) {
   const workflow = useDemoWorkflow();
   const [query, setQuery] = useState("");
@@ -269,34 +204,7 @@ export function KnowledgeBasePage({ runtimeMode }: { runtimeMode: "demo" | "prod
     SourceCitation,
     "docId" | "title" | "passageId"
   > | null>(null);
-  const [question, setQuestion] = useState(
-    runtimeMode === "production"
-      ? "当前知识库有哪些已验证的维护证据？"
-      : DEFAULT_KNOWLEDGE_QUESTION,
-  );
-  const [answer, setAnswer] = useState<KnowledgeAssistantAnswer | null>(null);
-  const [assistantError, setAssistantError] = useState<string | null>(null);
-  const [assistantLoading, setAssistantLoading] = useState(false);
-  const didAskDefault = useRef(false);
-  const uploadInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadUnknown, setUploadUnknown] = useState(false);
-  const artifactCommand = useRef(new KnowledgeArtifactCommand());
-  const uploadFlight = useRef(false);
-  const frozenUpload = useRef<{
-    readonly file: File;
-    readonly documentId: string;
-    readonly contentType: string;
-    readonly parser: "docling" | "native";
-  } | null>(null);
-  const [parseScannedPdf, setParseScannedPdf] = useState(false);
-  const parserCapabilities = useQuery({
-    queryKey: ["knowledge-parser-capabilities", runtimeMode],
-    enabled: runtimeMode === "production",
-    queryFn: ({ signal }) =>
-      apiGet<KnowledgeParserCapabilities>("/api/backend/knowledge/parser-capabilities", signal),
-  });
+  const parserCapabilities = useKnowledgeParserHealth(runtimeMode === "production");
   const documentQuery = useQuery({
     queryKey: ["knowledge-documents", runtimeMode],
     queryFn: ({ signal }) => apiGet<KnowledgeDocumentsEnvelope>("/api/knowledge-documents", signal),
@@ -309,6 +217,8 @@ export function KnowledgeBasePage({ runtimeMode }: { runtimeMode: "demo" | "prod
         ? 2500
         : false,
   });
+
+  const upload = useKnowledgeUpload(parserCapabilities, documentQuery);
 
   const workflowDocument = useMemo<KnowledgeDocument | null>(() => {
     if (runtimeMode === "production") return null;
@@ -476,42 +386,6 @@ export function KnowledgeBasePage({ runtimeMode }: { runtimeMode: "demo" | "prod
     [openDocument],
   );
 
-  const askQuestion = useCallback(
-    async (value: string) => {
-      const normalized = value.trim();
-      if (!normalized) {
-        setAssistantError("请输入问题后再检索。");
-        return;
-      }
-      setAssistantLoading(true);
-      setAssistantError(null);
-      try {
-        const payload: unknown = await apiPost("/api/knowledge-assistant", {
-          question: normalized,
-          turbineId: runtimeMode === "demo" ? featuredMission.turbineId : "",
-          missionId: runtimeMode === "demo" ? featuredMission.id : "",
-        });
-        if (!isAssistantSuccess(payload)) throw new Error("知识助手返回了无效响应。");
-        setAnswer(payload.data.answer);
-      } catch (error) {
-        setAssistantError(error instanceof Error ? error.message : "知识检索失败，请稍后重试。");
-      } finally {
-        setAssistantLoading(false);
-      }
-    },
-    [runtimeMode],
-  );
-
-  useEffect(() => {
-    if (didAskDefault.current) return;
-    didAskDefault.current = true;
-    void askQuestion(question);
-  }, [askQuestion, question]);
-
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    void askQuestion(question);
-  };
   const openCitation = (citation: SourceCitation) => {
     const document = documents.find((candidate) => candidate.id === citation.docId);
     const passageId = /^[a-f0-9-]{36}$/i.test(citation.passageId) ? citation.passageId : null;
@@ -521,95 +395,31 @@ export function KnowledgeBasePage({ runtimeMode }: { runtimeMode: "demo" | "prod
       setUnlistedCitation(citation);
     }
   };
-  const uploadKnowledgeDocument = async (file: File) => {
-    if (uploadFlight.current) return;
-    const extension = file.name.split(".").pop()?.toLowerCase();
-    const contentType =
-      file.type ||
-      (extension === "md"
-        ? "text/markdown"
-        : extension === "txt"
-          ? "text/plain"
-          : extension === "pdf"
-            ? "application/pdf"
-            : extension === "docx"
-              ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              : "");
-    const supported = new Set([
-      "text/plain",
-      "text/markdown",
-      "application/pdf",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ]);
-    if (!supported.has(contentType)) {
-      setUploadError("仅支持 UTF-8 TXT/Markdown、PDF 和 DOCX 文档。");
-      return;
-    }
-    if (
-      !artifactCommand.current.resultUnknown &&
-      file.size > (parserCapabilities.data?.max_artifact_bytes ?? 50 * 1024 * 1024)
-    ) {
-      setUploadError("知识制品不能超过 50 MiB。");
-      return;
-    }
-    const selectedParser =
-      contentType === "application/pdf" && parseScannedPdf ? "docling" : "native";
-    if (
-      !artifactCommand.current.resultUnknown &&
-      selectedParser === "docling" &&
-      parserCapabilities.data?.docling_pdf_configured !== true
-    ) {
-      setUploadError("扫描件解析尚未配置，请先确认后台解析服务。");
-      return;
-    }
-    setUploading(true);
-    uploadFlight.current = true;
-    setUploadError(null);
-    try {
-      if (!artifactCommand.current.resultUnknown) {
-        frozenUpload.current = {
-          file,
-          documentId: `KD-${crypto.randomUUID()}`,
-          contentType,
-          parser: selectedParser,
-        };
-      }
-      const frozen = frozenUpload.current;
-      if (!frozen) throw new Error("没有可核验的知识提交。");
-      const title = frozen.file.name.replace(/\.[^.]+$/, "");
-      await artifactCommand.current.run(
-        {
-          file: frozen.file,
-          presignPath: "/api/backend/knowledge/documents/uploads/presign",
-          presignBody: { document_id: frozen.documentId, content_type: frozen.contentType },
-          commandPath: "/api/backend/knowledge/documents",
-          commandBody: {
-            document_id: frozen.documentId,
-            title,
-            document_type: "maintenance-procedure",
-            document_version: "1",
-            content_type: frozen.contentType,
-            parser: frozen.parser,
-            metadata: { summary: title, language: "zh-CN", tags: ["uploaded"] },
-          },
-        },
-        (value): value is { document_id: string; ingestion_status: string } =>
-          value !== null &&
-          typeof value === "object" &&
-          (value as Record<string, unknown>).document_id === frozen.documentId &&
-          typeof (value as Record<string, unknown>).ingestion_status === "string",
-      );
-      frozenUpload.current = null;
-      await documentQuery.refetch();
-    } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "知识制品上传失败。");
-    } finally {
-      setUploading(false);
-      uploadFlight.current = false;
-      setUploadUnknown(artifactCommand.current.resultUnknown);
-      if (uploadInputRef.current) uploadInputRef.current.value = "";
-    }
-  };
+  const metrics = [
+    [
+      Library,
+      "文档数",
+      documents.length,
+      runtimeMode === "production"
+        ? "权威制品台账"
+        : workflowDocument
+          ? "+1 条工作流沉淀"
+          : "精选目录",
+    ],
+    [
+      Database,
+      "可检索",
+      documents.filter((item) => item.vectorized).length,
+      runtimeMode === "production" ? "真实 embedding 状态" : "演示元数据",
+    ],
+    [Layers3, "故障案例", runtimeMode === "production" ? "—" : failureCases.length, "闭环归档"],
+    [
+      Link2,
+      "WT-023 证据",
+      runtimeMode === "production" ? "—" : featuredMission.evidenceIds.length,
+      runtimeMode === "production" ? "按检索范围计算" : featuredMission.id,
+    ],
+  ] as const;
 
   return (
     <AppShell runtimeMode={runtimeMode} activePath="/knowledge">
@@ -629,40 +439,7 @@ export function KnowledgeBasePage({ runtimeMode }: { runtimeMode: "demo" | "prod
           </>
         }
         actions={
-          runtimeMode === "production" ? (
-            <>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={parseScannedPdf}
-                  disabled={
-                    uploading ||
-                    uploadUnknown ||
-                    parserCapabilities.data?.docling_pdf_configured !== true
-                  }
-                  onChange={(event) => setParseScannedPdf(event.target.checked)}
-                />{" "}
-                PDF 扫描件解析
-              </label>
-              <input
-                ref={uploadInputRef}
-                hidden
-                type="file"
-                accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void uploadKnowledgeDocument(file);
-                }}
-              />
-              <Button
-                variant="primary"
-                disabled={uploading || uploadUnknown}
-                onClick={() => uploadInputRef.current?.click()}
-              >
-                <Upload size={15} /> {uploading ? "校验并上传中…" : "上传知识制品"}
-              </Button>
-            </>
-          ) : undefined
+          runtimeMode === "production" ? <KnowledgeUploadActions upload={upload} /> : undefined
         }
       />
 
@@ -675,107 +452,22 @@ export function KnowledgeBasePage({ runtimeMode }: { runtimeMode: "demo" | "prod
           </span>
         </section>
       ) : null}
-      {runtimeMode === "production" && parserCapabilities.isError ? (
-        <section className="controlled-entry-note" role="alert">
-          <ShieldAlert size={16} />
-          <span>
-            <strong>扫描件解析配置暂时无法读取</strong>
-            <small>后台读取失败，确认连接恢复后可重新获取配置。</small>
-          </span>
-          <Button
-            variant="secondary"
-            disabled={parserCapabilities.isFetching}
-            onClick={() => void parserCapabilities.refetch()}
-          >
-            重试解析配置
-          </Button>
-        </section>
-      ) : null}
-      {runtimeMode === "production" && parseScannedPdf ? (
-        <p className={styles.sourceNote}>
-          PDF 将在后台解析。OCR 文字和表格中的数字、正负号、小数点与单位需对照原件复核。
-        </p>
-      ) : null}
-      {runtimeMode === "production" && parserCapabilities.isError ? (
-        <p role="status" className={styles.sourceNote}>
-          扫描件解析配置暂时无法读取。普通文字文档仍可上传。
-        </p>
-      ) : null}
-      {uploadError ? (
-        <section className="controlled-entry-note" role="alert">
-          <ShieldAlert size={16} />
-          <span>
-            <strong>{uploadUnknown ? "知识提交响应未确认" : "知识制品未写入"}</strong>
-            <small>{uploadError}</small>
-          </span>
-        </section>
-      ) : null}
-      {uploadUnknown ? (
-        <section className="controlled-entry-note" role="alert">
-          <span>
-            <strong>提交结果尚待核验</strong>
-            <small>已保留原文件、文档身份与幂等键。核验同一提交期间不能更换输入。</small>
-          </span>
-          <Button
-            disabled={uploading}
-            onClick={() => {
-              if (frozenUpload.current) void uploadKnowledgeDocument(frozenUpload.current.file);
-            }}
-          >
-            核验同一提交
-          </Button>
-        </section>
-      ) : null}
+      {runtimeMode === "production" ? <KnowledgeParserHealth health={parserCapabilities} /> : null}
+      <KnowledgeUploadFeedback upload={upload} runtimeMode={runtimeMode} />
 
       <section className={styles.metrics} aria-label="知识库统计">
-        <article>
-          <span>
-            <Library size={17} />
-          </span>
-          <div>
-            <small>文档数</small>
-            <strong>{documents.length}</strong>
-          </div>
-          <em>
-            {runtimeMode === "production"
-              ? "权威制品台账"
-              : workflowDocument
-                ? "+1 条工作流沉淀"
-                : "精选目录"}
-          </em>
-        </article>
-        <article>
-          <span>
-            <Database size={17} />
-          </span>
-          <div>
-            <small>可检索</small>
-            <strong>{documents.filter((item) => item.vectorized).length}</strong>
-          </div>
-          <em>{runtimeMode === "production" ? "真实 embedding 状态" : "演示元数据"}</em>
-        </article>
-        <article>
-          <span>
-            <Layers3 size={17} />
-          </span>
-          <div>
-            <small>故障案例</small>
-            <strong>{runtimeMode === "production" ? "—" : failureCases.length}</strong>
-          </div>
-          <em>闭环归档</em>
-        </article>
-        <article>
-          <span>
-            <Link2 size={17} />
-          </span>
-          <div>
-            <small>WT-023 证据</small>
-            <strong>
-              {runtimeMode === "production" ? "—" : featuredMission.evidenceIds.length}
-            </strong>
-          </div>
-          <em>{runtimeMode === "production" ? "按检索范围计算" : featuredMission.id}</em>
-        </article>
+        {metrics.map(([Icon, label, value, note]) => (
+          <article key={label}>
+            <span>
+              <Icon size={17} />
+            </span>
+            <div>
+              <small>{label}</small>
+              <strong>{value}</strong>
+            </div>
+            <em>{note}</em>
+          </article>
+        ))}
       </section>
 
       <div className={styles.layout}>
@@ -861,111 +553,7 @@ export function KnowledgeBasePage({ runtimeMode }: { runtimeMode: "demo" | "prod
           />
         </section>
 
-        <aside className={styles.assistantPanel} aria-label="知识助手">
-          <header className={styles.assistantHeader}>
-            <span>
-              <Bot size={18} />
-            </span>
-            <div>
-              <small>知识助手</small>
-              <h2>带来源的回答</h2>
-            </div>
-            <StatusBadge value="demo" label="确定性检索" tone="info" />
-          </header>
-
-          <form className={styles.questionForm} onSubmit={onSubmit}>
-            <label htmlFor="knowledge-question">向 WT-023 知识域提问</label>
-            <div>
-              <textarea
-                id="knowledge-question"
-                maxLength={500}
-                rows={3}
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-              />
-              <Button
-                aria-label="发送问题"
-                loading={assistantLoading}
-                size="icon"
-                type="submit"
-                variant="primary"
-              >
-                <Send size={15} />
-              </Button>
-            </div>
-          </form>
-
-          {assistantError ? (
-            <div className={styles.assistantError} role="alert">
-              <ShieldAlert size={16} />
-              <span>
-                <strong>检索失败</strong>
-                <small>{assistantError}</small>
-              </span>
-            </div>
-          ) : null}
-
-          {assistantLoading && !answer ? (
-            <div className={styles.loadingAnswer} aria-live="polite">
-              <LoaderCircle className="spin" size={18} />
-              正在对固定知识目录执行关键词打分…
-            </div>
-          ) : null}
-
-          {answer ? (
-            <div className={styles.answer} aria-live="polite">
-              <section className={styles.answerSummary}>
-                <span>
-                  <Sparkles size={14} /> 结构化回答
-                </span>
-                <h3>{answer.answer.headline}</h3>
-                <p>{answer.answer.summary}</p>
-                <div>
-                  <strong>{answer.answer.confidencePercent}%</strong>
-                  <small>Mission 诊断置信度</small>
-                </div>
-              </section>
-
-              <div className={styles.findings}>
-                {answer.answer.findings.map((finding) => (
-                  <article key={finding.label}>
-                    <span>{finding.label}</span>
-                    <strong>{finding.value}</strong>
-                    <p>{finding.interpretation}</p>
-                    <small>
-                      {[...finding.evidenceIds, ...finding.passageIds].join(" · ") ||
-                        "无可追溯段落"}
-                    </small>
-                  </article>
-                ))}
-              </div>
-
-              <section className={styles.conclusion}>
-                <strong>结论与边界</strong>
-                <p>{answer.answer.conclusion}</p>
-              </section>
-
-              <section className={styles.sources}>
-                <div>
-                  <span>来源引用</span>
-                  <small>{answer.citations.length} 个可追溯来源</small>
-                </div>
-                {answer.citations.map((citation) => (
-                  <CitationButton
-                    key={citation.passageId}
-                    citation={citation}
-                    onOpen={openCitation}
-                  />
-                ))}
-              </section>
-
-              <div className={styles.disclaimer}>
-                <ShieldAlert size={14} />
-                <p>{answer.disclaimer}</p>
-              </div>
-            </div>
-          ) : null}
-        </aside>
+        <KnowledgeAssistantPanel runtimeMode={runtimeMode} openCitation={openCitation} />
       </div>
 
       {selectedDocument ? (

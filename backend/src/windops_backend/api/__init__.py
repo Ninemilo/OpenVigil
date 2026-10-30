@@ -8,6 +8,7 @@ from windops_backend.api import (
     engineering_claims,
     knowledge,
     knowledge_passages,
+    knowledge_review,
     missions,
     model_registry,
     operations,
@@ -35,6 +36,7 @@ for _module in (
     operations,
     structural,
     knowledge_passages,
+    knowledge_review,
     engineering_claims,
     structural_workflow,
 ):

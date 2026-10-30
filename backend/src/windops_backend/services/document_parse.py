@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.sql.elements import ColumnElement
 
 from windops_backend.config import Settings
 from windops_backend.document_parse_identity import DOCUMENT_PARSER_VERSIONS, parser_code_identity
@@ -19,7 +21,13 @@ from windops_backend.document_parse_result_identity import (
 from windops_backend.knowledge_parsing import ParsedKnowledge, ParsedPassage
 from windops_backend.model_base import utcnow
 from windops_backend.models import KnowledgeDocument
-from windops_backend.outbox import OutboxLeaseLostError, assert_current_claim, claim_event
+from windops_backend.outbox import (
+    OUTBOX_DISPATCH_VISIBILITY,
+    OUTBOX_LEASE,
+    OutboxLeaseLostError,
+    assert_current_claim,
+    claim_event,
+)
 from windops_backend.services.events import append_domain_event
 from windops_backend.services.knowledge_contracts import (
     ALLOWED_KNOWLEDGE_CONTENT_TYPES,
@@ -73,6 +81,26 @@ def _finish_event(event: OutboxEvent, *, error_code: str | None = None) -> None:
     event.processed_at = utcnow()
 
 
+def _recoverable_parse_claim(now: datetime) -> ColumnElement[bool]:
+    return and_(
+        OutboxEvent.event_type == KNOWLEDGE_DOCUMENT_PARSE_REQUESTED,
+        OutboxEvent.aggregate_type == "knowledge_document",
+        or_(
+            OutboxEvent.status == "failed",
+            and_(
+                OutboxEvent.status == "processing",
+                or_(
+                    OutboxEvent.lease_expires_at <= now,
+                    and_(
+                        OutboxEvent.lease_expires_at.is_(None),
+                        OutboxEvent.claimed_at < now - OUTBOX_LEASE,
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
 async def recoverable_document_parse_events(
     factory: async_sessionmaker[AsyncSession], limit: int = 50
 ) -> list[tuple[str, str]]:
@@ -82,16 +110,56 @@ async def recoverable_document_parse_events(
                 select(OutboxEvent.id, OutboxEvent.event_type)
                 .join(KnowledgeDocument, KnowledgeDocument.id == OutboxEvent.aggregate_id)
                 .where(
-                    OutboxEvent.event_type == KNOWLEDGE_DOCUMENT_PARSE_REQUESTED,
+                    _recoverable_parse_claim(datetime.now(UTC)),
                     KnowledgeDocument.ingestion_status.in_(("pending_parse", "parsing")),
-                    (OutboxEvent.status == "failed")
-                    | (
-                        (OutboxEvent.status == "processing")
-                        & (OutboxEvent.lease_expires_at <= utcnow())
-                    ),
                 )
-                .order_by(OutboxEvent.created_at)
+                .order_by(OutboxEvent.created_at, OutboxEvent.id)
                 .limit(limit)
+            )
+        ).all()
+        return [(str(identity), str(event_type)) for identity, event_type in rows]
+
+
+async def reserve_document_parse_recoveries(
+    factory: async_sessionmaker[AsyncSession], limit: int = 50
+) -> list[tuple[str, str]]:
+    """Reserve bounded redeliveries before contacting Redis, without changing a claim.
+
+    A stopped consumer or failed publication must not fill Redis every relay tick.
+    Failed sends and lost messages become eligible again after the visibility
+    window. Reserving the oldest batch lets later jobs progress on the next tick.
+    PostgreSQL skips rows held by another relay/worker; the outer predicates also
+    fence a claim or reservation that changes while a database update is waiting.
+    """
+    if not 1 <= limit <= 100:
+        raise ValueError("document recovery batch must contain 1 to 100 events")
+    now = datetime.now(UTC)
+    eligible = and_(
+        _recoverable_parse_claim(now),
+        or_(
+            OutboxEvent.dispatched_at.is_(None),
+            OutboxEvent.dispatched_at <= now - OUTBOX_DISPATCH_VISIBILITY,
+        ),
+    )
+    candidates = (
+        select(OutboxEvent.id)
+        .join(KnowledgeDocument, KnowledgeDocument.id == OutboxEvent.aggregate_id)
+        .where(
+            eligible,
+            KnowledgeDocument.ingestion_status.in_(("pending_parse", "parsing")),
+        )
+        .order_by(OutboxEvent.created_at, OutboxEvent.id)
+        .limit(limit)
+        .with_for_update(of=OutboxEvent, skip_locked=True)
+    )
+    async with factory() as session, session.begin():
+        rows = (
+            await session.execute(
+                update(OutboxEvent)
+                .where(eligible, OutboxEvent.id.in_(candidates))
+                .values(dispatched_at=now)
+                .returning(OutboxEvent.id, OutboxEvent.event_type)
+                .execution_options(synchronize_session=False)
             )
         ).all()
         return [(str(identity), str(event_type)) for identity, event_type in rows]

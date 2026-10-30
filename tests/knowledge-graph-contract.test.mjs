@@ -42,7 +42,7 @@ test("knowledge graph workspace is routable and no longer marked as coming soon"
   assert.match(html, /不投影原始 SCADA/);
 
   const shell = await readFile(
-    new URL("../components/layout/app-shell.tsx", import.meta.url),
+    new URL("../components/layout/app-shell-navigation.ts", import.meta.url),
     "utf8",
   );
   assert.match(shell, /href: "\/knowledge-graph"/);
