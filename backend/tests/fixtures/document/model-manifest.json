@@ -1,6 +1,6 @@
 {
   "contract": "openvigil.document-models.v1",
-  "docling_version": "2.133.0",
+  "docling_version": "2.150.0",
   "files": [
     {
       "path": "docling-project--docling-layout-heron/config.json",

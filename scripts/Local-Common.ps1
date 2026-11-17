@@ -84,12 +84,37 @@ function Start-OwnedProcess([string]$Role, [string]$Executable, [string[]]$Argum
         -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $script:LocalFolder "$Role.stdout.log") `
         -RedirectStandardError (Join-Path $script:LocalFolder "$Role.stderr.log")
-    $observed = Get-CimInstance Win32_Process -Filter "ProcessId = $($process.Id)"
-    if ($null -eq $observed) { throw "$Role exited immediately; inspect its private log." }
-    return [PSCustomObject]@{
-        role = $Role; pid = $observed.ProcessId
-        created = $observed.CreationDate.ToUniversalTime().ToString('o')
-        command = $observed.CommandLine; executable = $observed.ExecutablePath
+    try {
+        # A newly launched process may be visible to CIM before its executable
+        # and command line are populated. Publish only a complete identity.
+        $startup = [Diagnostics.Stopwatch]::StartNew()
+        do {
+            $observed = Get-CimInstance Win32_Process -Filter "ProcessId = $($process.Id)"
+            if ($process.HasExited) { throw "$Role exited immediately; inspect its private log." }
+            if ($null -ne $observed -and $null -ne $observed.CreationDate -and
+                -not [string]::IsNullOrWhiteSpace($observed.CommandLine) -and
+                -not [string]::IsNullOrWhiteSpace($observed.ExecutablePath)) {
+                if (-not (Test-LocalCheckoutCommand $observed.CommandLine)) {
+                    throw "$Role did not start with a checkout-owned command."
+                }
+                return [PSCustomObject]@{
+                    role = $Role; pid = $observed.ProcessId
+                    created = $observed.CreationDate.ToUniversalTime().ToString('o')
+                    command = $observed.CommandLine; executable = $observed.ExecutablePath
+                }
+            }
+            Start-Sleep -Milliseconds 50
+        } while ($startup.Elapsed.TotalSeconds -lt 5)
+        throw "$Role did not publish a complete process identity within 5 seconds."
+    } catch {
+        # Use the original launch handle because there is no verified CIM identity yet.
+        if (-not $process.HasExited) {
+            $process.Kill($true)
+            if (-not $process.WaitForExit(5000)) { throw "$Role could not be stopped after startup failed." }
+        }
+        throw
+    } finally {
+        $process.Dispose()
     }
 }
 

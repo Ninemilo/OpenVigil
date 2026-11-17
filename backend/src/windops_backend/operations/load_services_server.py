@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import hashlib
 import ipaddress
-import json
 import logging
 import os
 import socket
@@ -31,6 +30,7 @@ from windops_backend.operations.load_services_settings import (
     services_settings,
 )
 from windops_backend.operations.load_software import ROOT, validate_run_directory
+from windops_backend.operations.report_io import write_new_json
 
 RUNTIME_SCHEMA = "openvigil.load-services-runtime.v1"
 
@@ -169,8 +169,7 @@ def write_runtime(
     )
     _certificate(private)
     path = private / "runtime.json"
-    with path.open("x", encoding="utf-8") as stream:
-        json.dump(data, stream, allow_nan=False)
+    write_new_json(path, data)
     if os.name != "nt":
         path.chmod(0o600)
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -234,17 +233,10 @@ def load_runtime(directory: Path, run_id: str, role: Role, runtime_sha256: str) 
 def _ready(directory: Path, run_id: str, role: Role, generation: int, **fields: Any) -> None:
     target = directory / f"ready-{role}-{generation}.json"
     temporary = directory / f"ready-{role}-{generation}.pending"
-    with temporary.open("x", encoding="utf-8") as stream:
-        json.dump(
-            {
-                "run_id": run_id,
-                "role": role,
-                "generation": generation,
-                "pid": os.getpid(),
-                **fields,
-            },
-            stream,
-        )
+    write_new_json(
+        temporary,
+        {"run_id": run_id, "role": role, "generation": generation, "pid": os.getpid(), **fields},
+    )
     # Publish only complete JSON and retain exclusive creation of the receipt.
     os.link(temporary, target)
     temporary.unlink()

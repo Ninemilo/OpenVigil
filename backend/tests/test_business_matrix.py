@@ -8,6 +8,13 @@ from scripts.run_business_e2e import summarize_browser_evidence
 from scripts.verify_business_matrix import SCENARIOS, verify_business_matrix
 
 COMMIT = "a" * 40
+PERSISTED_COUNTS = {
+    "maintenance": {"field_task_evidence": 5, "work_orders": 1},
+    "structural": {"structural_analysis_runs": 2, "work_orders": 1},
+    "structural-modal": {"structural_analysis_runs": 32, "health_baselines": 1},
+    "structural-scope": {"engineering_claim_reviews": 1, "work_orders": 0},
+    "document": {"scenario_passages": 15, "scenario_index_jobs": 1},
+}
 
 
 def _reports(root):
@@ -35,7 +42,10 @@ def _reports(root):
                 "junit_sha256": "b" * 64,
             },
             "verified_minio_objects": 1,
-            "database": {"counts": {"unit_fixture_only": 1}},
+            "database": {
+                "counts": PERSISTED_COUNTS[scenario],
+                "artifacts": [{"uri": "s3://fixture/source", "sha256": "c" * 64}],
+            },
         }
         (folder / "report.json").write_text(json.dumps(report))
 
@@ -96,6 +106,39 @@ def test_incomplete_stale_dirty_or_failed_verdict_is_rejected(tmp_path, field, v
     report[field] = value
     path.write_text(json.dumps(report))
     with pytest.raises(ValueError):
+        _verify(tmp_path)
+
+
+@pytest.mark.parametrize("scenario", sorted(SCENARIOS))
+def test_persisted_counts_must_match_the_scenario(tmp_path, scenario):
+    _reports(tmp_path)
+    path = tmp_path / scenario / "report.json"
+    report = json.loads(path.read_bytes())
+    report["database"]["counts"] = {"unrelated_count": 1}
+    path.write_text(json.dumps(report))
+    with pytest.raises(ValueError, match="persisted business evidence"):
+        _verify(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("counts", {"scenario_passages": 15, "scenario_index_jobs": True}),
+        ("counts", {"scenario_passages": 15, "scenario_index_jobs": 1, "extra": -1}),
+        ("artifacts", None),
+        ("artifacts", []),
+        ("artifacts", [{"uri": "s3://fixture/source", "sha256": "unknown"}]),
+        ("artifacts", [{"sha256": "c" * 64}]),
+        ("artifacts", [{"uri": "s3://fixture/source", "sha256": "c" * 64}] * 2),
+    ],
+)
+def test_report_rejects_invalid_counts_or_unverified_object_details(tmp_path, field, value):
+    _reports(tmp_path)
+    path = tmp_path / "document/report.json"
+    report = json.loads(path.read_bytes())
+    report["database"][field] = value
+    path.write_text(json.dumps(report))
+    with pytest.raises(ValueError, match="persisted business evidence|object roundtrip"):
         _verify(tmp_path)
 
 

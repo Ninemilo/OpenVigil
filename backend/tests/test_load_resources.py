@@ -49,6 +49,34 @@ def test_wrong_start_identity_fails_closed_on_real_current_process() -> None:
         resources.read_process(replace(identity, platform="unrelated-platform"))
 
 
+def test_sampler_rechecks_slot_and_duration_deadlines_after_early_wake(monkeypatch) -> None:
+    identity = resources.register_process()
+    start = 1_000_000.0
+    now = start
+    early = True
+    sampled: list[tuple[int, float]] = []
+
+    def wait(timeout: float) -> bool:
+        nonlocal now, early
+        if timeout > 0:
+            now += timeout / 2 if early else timeout
+            early = not early
+        return False
+
+    sampler = resources.ProcessResourceSampler(
+        [identity], duration_seconds=0.4, interval_seconds=0.1
+    )
+    monkeypatch.setattr(resources, "time", SimpleNamespace(monotonic=lambda: now))
+    monkeypatch.setattr(sampler._stop, "wait", wait)
+    monkeypatch.setattr(sampler, "_take_sample", lambda slot: sampled.append((slot, now)))
+    sampler._started = start
+    sampler._run()
+
+    assert sampled == [(slot, start + slot * 0.1) for slot in range(4)]
+    assert now == start + 0.4
+    assert sampler.stop()["completed_duration"] is True
+
+
 def test_bounded_sampler_records_current_and_owned_child_exit_without_zero_fill() -> None:
     child = subprocess.Popen(
         [

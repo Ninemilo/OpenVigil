@@ -193,6 +193,81 @@ def forbid_later_work(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("workload", "measurement_only", "response_bytes", "expected_status"),
+    [
+        ("document_batch", True, 2, "measurement_only"),
+        ("backlog", False, 2, "insufficient_evidence"),
+        ("document_batch", False, 2_000_000, "failed"),
+    ],
+)
+async def test_document_budgets_report_missing_tail_or_exceeded_response_limit(
+    tmp_path, monkeypatch, workload, measurement_only, response_bytes, expected_status
+):
+    run = measurement(tmp_path, [workload])
+    budget = run.profile.budgets[0].model_copy(
+        update={"measurement_only": measurement_only, "maximum_response_bytes": 1024}
+    )
+    run.profile = run.profile.model_copy(update={"budgets": (budget,)})
+    run.started = time.perf_counter()
+
+    async def complete_batch(**kwargs):
+        documents = tuple(
+            DocumentResult(
+                item.document_id,
+                item.user_id,
+                item.parser,
+                item.artifact_sha256,
+                item.size_bytes,
+                tuple(DocumentStageSample(stage, "success", 0.0, 1.0) for stage in STAGES),
+                outcome="indexed",
+                accepted=True,
+            )
+            for item in kwargs["documents"]
+        )
+        http = tuple(
+            DocumentHttpSample(
+                index,
+                item.document_id,
+                item.user_id,
+                "presign",
+                outcome="success",
+                response_bytes=response_bytes,
+            )
+            for index, item in enumerate(documents)
+        )
+        return DocumentBatchResult(
+            run.runtime.run_id,
+            documents,
+            http,
+            1.0,
+            True,
+            True,
+            None,
+            200,
+            response_bytes * len(http),
+            1,
+        )
+
+    monkeypatch.setattr(execution, "run_document_batch", complete_batch)
+    await run.batch(workload)
+    run.summarize(
+        {
+            "processes": [{"observed_peak_rss_bytes": 10}],
+            "process_rss": {"complete_observation_slots": 1, "observed_peak_total_bytes": 10},
+            "expected_slot_count": 1,
+        }
+    )
+    verdict = run.report["budget_verdicts"][workload]
+    assert verdict["status"] == expected_status and verdict["qualified"] is False
+    assert "insufficient_tail_samples" in verdict["reason_codes"]
+    assert ("response_bytes_exceeded" in verdict["reason_codes"]) is (response_bytes > 1024)
+    summary = run.report["workloads"][workload]["summary"]
+    assert summary["p95_ms"] is summary["p99_ms"] is None
+    assert summary["maximum_response_bytes"] == response_bytes
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("trigger", ["deadline", "resource_cancel", "scheduler_stop"])
 async def test_partial_reads_stop_later_workloads_and_keep_every_planned_sample(
     tmp_path, monkeypatch, trigger

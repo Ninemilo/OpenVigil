@@ -23,6 +23,8 @@ Get-FileHash .artifacts/document-parser/models/openvigil-model-manifest.json -Al
 
 模型准备脚本执行受限公共下载并验证固定来源/权重。布局模型来自固定 Heron commit，TableFormer 来自固定 Docling models commit，中文检测/识别/方向模型来自冻结 RapidOCR registry SHA。清单记录许可证及原始链接。已有清单的模型目录会核验，不覆盖已有权重。模型准备完成后可移除网络下载权限；运行时不需要网络推理。
 
+当前锁使用 Docling 2.150.0 及其配套解析库。升级时在新目录运行模型准备脚本，按新清单 SHA 暂存发布输入，并让 API、OCR worker 和部署配置使用同一清单。2026-11-11 的冻结扫描件在新 Windows 环境中通过，模型权重和来源与旧清单一致，清单中的 Docling 版本已更新。
+
 ## API、通用 worker 与专用 worker 的配置
 
 使用现有配置加载方式，给 API、relay 和专用 worker 提供相同模型清单与当前源码身份。以下值是配置示例；设置前先计算实际清单 SHA，不修改现有 `.env` 的凭据。
@@ -69,7 +71,7 @@ relay 对失败/过期且未终止的解析任务先原子预留五分钟恢复�
 | `WINDOPS_DOCUMENT_MODEL_MANIFEST_SHA256`  | 模型清单原字节 SHA-256                                  |
 | `WINDOPS_DOCUMENT_INPUTS_TOKEN`（secret） | 输入制品只读访问凭据                                    |
 
-ZIP 必须包含 `models/openvigil-model-manifest.json`、清单内的全部模型文件、`fixture/source.pdf` 与 `fixture/expectations.json`。暂存脚本拒绝路径穿越、链接、重复路径、额外文件与超限展开；解包后逐文件核对模型大小/SHA，并核对扫描件 SHA。模型总量上限2GiB；PDF上限50MiB；不在解析期间下载权重。测试输入应使用可公开的合成资料，独立报告将保存解析结果原文。
+ZIP 必须包含 `models/openvigil-model-manifest.json`、清单内的全部模型文件、`fixture/source.pdf` 与 `fixture/expectations.json`。工作流在登录镜像仓库前完成暂存与校验，归档或模型身份不匹配会在推送候选镜像前终止。暂存脚本拒绝路径穿越、链接、重复路径、额外文件与超限展开；解包后逐文件核对模型大小/SHA，并核对扫描件 SHA。模型总量上限2GiB；PDF上限50MiB；不在解析期间下载权重。测试输入应使用可公开的合成资料，独立报告将保存解析结果原文。
 
 `expectations.json` 使用 `openvigil.document-smoke.v1`，必须声明实际的 `fixture_sha256`、`source_page_count`、`passage_count`、`table_cell_count`、排序去重后的 `passage_pages` 和非空 `required_text`。这些期望由制品审核冻结，不能在运行后根据输出改写。
 

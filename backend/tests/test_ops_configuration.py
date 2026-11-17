@@ -105,15 +105,22 @@ def test_ci_has_a_non_skipping_pinned_postgres_contract_gate() -> None:
     assert job["env"]["WINDOPS_RUN_POSTGRES_CONTRACT_TESTS"] == "1"
     assert job["env"]["WINDOPS_RUN_POSTGRES_CONCURRENCY_TESTS"] == "1"
     assert job["env"]["WINDOPS_FAIL_ON_SKIPPED"] == "1"
-    commands = "\n".join(
-        str(step.get("run", "")) for step in job["steps"] if isinstance(step, dict)
+    install = next(
+        step["run"]
+        for step in job["steps"]
+        if step.get("name") == "Install backend test dependencies"
     )
+    assert "uv sync --frozen --extra test --extra benchmark --extra structural" in install
+    commands = [step["run"] for step in job["steps"] if "run" in step]
+    assert "alembic upgrade head" in commands
+    pytest_run = next(run for run in commands if run.startswith("python -m pytest "))
     for required in (
-        "alembic upgrade head",
         "test_postgres_migrations.py",
         "test_postgres_concurrency.py",
         "test_postgres_service_resilience.py",
         "test_postgres_prediction_lock.py",
-        "--junitxml",
+        "test_postgres_read_audit.py",
+        "tests/external/test_structural_graph_postgres.py",
+        "--junitxml=postgres-contract-junit.xml",
     ):
-        assert required in commands
+        assert required in pytest_run

@@ -231,9 +231,18 @@ async def test_verification_failure_is_unavailable_and_concurrent_changes_fence_
 
     with monkeypatch.context() as patch:
         patch.setattr(verifier, "read_verified_object", pending)
+        # This phase deliberately holds object I/O open while a separate transaction commits.
+        patch.setattr(structural_access, "GRAPH_CLAIM_READ_TIMEOUT_SECONDS", 30.0)
         task = asyncio.create_task(graph(client, claim["id"]))
+        entered_verification = asyncio.create_task(started.wait())
         try:
-            await asyncio.wait_for(started.wait(), timeout=10)
+            completed, _ = await asyncio.wait(
+                (task, entered_verification), timeout=30, return_when=asyncio.FIRST_COMPLETED
+            )
+            if task in completed:
+                early = task.result()
+                pytest.fail(f"HTTP {early.status_code} before object verification: {early.text}")
+            assert entered_verification in completed, "Graph did not start object verification"
             async with app.state.session_factory() as session, session.begin():
                 if mutation == "withdraw":
                     await session.execute(
@@ -255,10 +264,14 @@ async def test_verification_failure_is_unavailable_and_concurrent_changes_fence_
                             calibration_version="synthetic-drift-during-read"
                         )
                     )
+            released.set()
+            response = await asyncio.wait_for(task, timeout=30)
+            assert response.status_code == 404, response.text
         finally:
             released.set()
-        response = await asyncio.wait_for(task, timeout=10)
-        assert response.status_code == 404, response.text
+            entered_verification.cancel()
+            task.cancel()
+            await asyncio.gather(entered_verification, task, return_exceptions=True)
 
 
 def test_exact_claim_proof_and_component_grants_filter_relationship_endpoints():

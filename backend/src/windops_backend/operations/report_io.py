@@ -5,7 +5,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 
 def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
@@ -14,6 +14,20 @@ def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
         for chunk in iter(lambda: stream.read(chunk_size), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def dump_json_receipt(payload: dict[str, Any], stream: TextIO, *, pretty: bool = False) -> None:
+    if pretty:
+        json.dump(payload, stream, ensure_ascii=False, indent=2, allow_nan=False)
+        stream.write("\n")
+    else:
+        json.dump(payload, stream, allow_nan=False)
+
+
+def write_new_json(path: Path, payload: dict[str, Any], *, pretty: bool = False) -> None:
+    """Create a receipt exclusively in compact or readable form."""
+    with path.open("x", encoding="utf-8") as stream:
+        dump_json_receipt(payload, stream, pretty=pretty)
 
 
 def write_atomic_json(

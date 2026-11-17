@@ -32,7 +32,7 @@
 | POST | 同上                                                     | 提议数值修正或原值确认；需 `Idempotency-Key`                              |
 | POST | 同上加 `/decision`                                       | `approve`、`reject` 或 `withdraw`；需 `Idempotency-Key`                   |
 
-两个写接口都携带当前 `expected_revision` 和 GET 返回的五项 `source_binding`：文档版本、原件 SHA、原文 SHA、解析器版本及定位 SHA。首次提议 revision 为 0；所有数字偏移为 Unicode code point，不是 JavaScript UTF-16 下标。数值保存为字符串，以保留正负号、小数尾零与科学计数法。
+两个写接口都携带当前 `expected_revision` 和 GET 返回的五项 `source_binding`，即文档版本、原件 SHA、原文 SHA、解析器版本及定位 SHA。对已验证 PDF 段落，数值复核和原件授权都会核对页码与原生定位或 Docling 区域。首次提议 revision 为 0。所有数字偏移按 Unicode code point 计算。数值保存为字符串，以保留正负号、小数尾零与科学计数法。
 
 写请求先核对当前角色、数据域、文档范围与来源身份，再读取幂等收据。相同主体/命令/目标/key 和相同请求可重放；不同请求或陈旧修订返回 409。状态、历史、领域事件及收据在同一事务提交；审批前还会重新核对原件字节。GET 需要读审计准入，不把审计故障当作成功。
 

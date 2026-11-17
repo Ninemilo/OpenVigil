@@ -1,18 +1,18 @@
-# 当前目标：代码结构重构（2026-10-29）
-
-状态：**COMPLETE_LOCAL_SOFTWARE_VERIFIED**。用户 `/goal`：重构当前项目代码，让结构更清晰。本轮已完成任务中心与后端推理模块的职责拆分，保留现有行为、权限、幂等、审计及兼容入口；311项Node、388项后端及96项浏览器测试通过，构建、类型、lint、格式与原包体/覆盖率门槛通过。
-
-实施计划与报告为仅本地文档：`docs/refactor/REFACTOR_PLAN-2026-10-29.md`、`docs/refactor/REFACTOR_REPORT-2026-10-29.md`。逐项记录见 `EXECUTION_PROGRESS.md` 顶部，总收据位于 `.artifacts/refactor-20261029/verification-receipt-v1.json`。保护全部既有未提交成果及HEAD/index/根`.env`；无新增依赖、数据库迁移、提交、推送、付费调用或生产部署。下方项目改进的外部验收待办保留，不因本轮本地结构验证变为通过。
-
----
-
-# OpenVigil 项目改进执行目标（2026-10-23）
+# 当前目标：OpenVigil 项目改进（2026-10-23）
 
 当前目标为完整执行 [项目改进建议](docs/project-improvement-recommendations-2026-10-23.md) 的八项改进及状态入口整理。完整条件见 [实施与验收矩阵](docs/improvement-execution-2026-10-23.md)，简短索引见 [当前状态](CURRENT_STATUS.md)；唯一活动状态为 `EXECUTION_PROGRESS.md` 顶部。不得以局部测试替代远端 CI、真实场景、现场精度或正式发布资格。
 
 按 P0 → P1 → P2 推进：CI 冻结与 CARE/同提交远端检查；OCR 独立发布；混塔/OCR CI；异步运行健康；真实工作流评测；证据复核；并发性能；有边界的模块拆分。外部依赖未就绪时保留该项，继续可独立完成的后续工程工作，不缩减原目标。每个独立项实现、验证后及时记录证据和剩余缺口。
 
 保护起点 HEAD `bc88d45080ef0cb0cbe446695e862755cf8e4edb`、37 个已有修改/新增文件、Git index、根 `.env`、历史收据和非本任务服务。原文件副本和摘要保存在 `.artifacts/improvements-20261023/`。现有代码与正确行为保持，数据库改动必须有迁移；不自动提交、推送、部署生产或无限调用付费模型。需要外部输入、评测预算或远端写入时，以准备好的具体结果为依据处理。
+
+---
+
+# 历史目标：代码结构重构（2026-10-29）
+
+状态：**COMPLETE_LOCAL_SOFTWARE_VERIFIED**。用户 `/goal`：重构当前项目代码，让结构更清晰。本轮已完成任务中心与后端推理模块的职责拆分，保留现有行为、权限、幂等、审计及兼容入口；311项Node、388项后端及96项浏览器测试通过，构建、类型、lint、格式与原包体/覆盖率门槛通过。
+
+实施计划与报告为仅本地文档：`docs/refactor/REFACTOR_PLAN-2026-10-29.md`、`docs/refactor/REFACTOR_REPORT-2026-10-29.md`。分轮记录见 [执行进度](EXECUTION_PROGRESS.md)，总收据位于 `.artifacts/refactor-20261029/verification-receipt-v1.json`。保护全部既有未提交成果及HEAD/index/根`.env`；无新增依赖、数据库迁移、提交、推送、付费调用或生产部署。项目改进的外部验收待办保留。
 
 ---
 

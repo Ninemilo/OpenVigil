@@ -1,6 +1,6 @@
 """Isolate the verified direct OpenAI SDK route inside an evaluation child.
 
-LiteLLM 1.96.2 treats embedding ``max_retries=0`` as falsy and substitutes its
+LiteLLM can treat embedding ``max_retries=0`` as falsy and substitute its
 default (normally 2). Set that default before import and at runtime, and check the
 actual OpenAI client before any request. Disable routing, fallbacks, callbacks,
 caches and parameter-repair retries. Other SDK versions/routes fail closed until
@@ -24,7 +24,7 @@ from windops_backend.agents.runtime import prepare_reasoning_runtime
 from windops_backend.config import Settings
 from windops_backend.operations.workflow_eval_budget import Transport
 
-SUPPORTED_SDK_VERSIONS = {"litellm": "1.96.2", "openai": "2.54.0"}
+SUPPORTED_SDK_VERSIONS = {"litellm": "1.100.4", "openai": "2.54.0"}
 _ACTIVE = False
 _CONTROLS: dict[str, Any] = {
     "DEFAULT_MAX_RETRIES": 0,

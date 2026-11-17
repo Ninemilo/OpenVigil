@@ -1,4 +1,8 @@
 # Dedicated document-parse runtime; never part of the API dependency closure.
-# Docling version matches the selected local reference snapshot.
-docling-slim[extract-core,format-pdf,models-local,feat-ocr-rapidocr-onnx]==2.133.0
-pypdf==6.19.0
+docling-slim[extract-core,format-pdf,models-local,feat-ocr-rapidocr-onnx]==2.150.0
+pypdf==6.21.4
+# Preserve the audited security minimums when re-resolving the CPU lock.
+certifi>=2026.10.18
+filelock>=4.2.1
+pillow>=13.0.0,<14
+setuptools>=84.1.0

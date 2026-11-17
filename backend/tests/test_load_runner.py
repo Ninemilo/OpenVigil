@@ -54,11 +54,13 @@ async def test_invalid_dynamic_headers_fail_before_transmission() -> None:
     assert all(sample.outcome == "failure" for sample in result.samples)
 
 
+# Deadline and timeout tests set their own short windows. Leave time for socket
+# setup on a busy host in tests that exercise the HTTP response itself.
 def profile(
     *,
     concurrency: int = 4,
-    duration: float = 5.0,
-    timeout: float = 1.0,
+    duration: float = 30.0,
+    timeout: float = 15.0,
     warmup: int = 0,
     cap: int = 300,
     maximum_bytes: int = 4096,
@@ -164,6 +166,10 @@ async def server() -> AsyncIterator[tuple[str, ServerState]]:
             state.first_request.set()
             if case in {"delay", "fixed"}:
                 await asyncio.sleep(0.025)
+            if case == "overlap":
+                if state.active == 4:
+                    state.release.set()
+                await state.release.wait()
             if case == "wait":
                 await state.release.wait()
             if case == "disconnect":
@@ -229,13 +235,12 @@ async def test_real_concurrency_warmup_route_local_users_and_cookie_isolation() 
         result = await run_load(
             origin=origin,
             users=users(),
-            routes=[route("delay"), route("delay", route_id="second")],
+            routes=[route("overlap"), route("overlap", route_id="second")],
             profile=profile(warmup=4, cap=204),
         )
     assert result.stop_reason is None and result.cleanup_passed
     assert result.planned_requests == len(result.samples) == len(state.requests) == 204
-    assert 2 <= result.max_observed_inflight <= 4
-    assert 2 <= state.maximum_active <= 4
+    assert result.max_observed_inflight == state.maximum_active == 4
     assert all(item.outcome == "success" for item in result.samples)
     warmup = [item for item in result.samples if item.phase == "warmup"]
     measured = [item for item in result.samples if item.phase == "measured"]
@@ -299,11 +304,11 @@ async def test_http_json_semantic_size_and_transport_failures_are_retained_witho
         result = await run_load(
             origin=origin, users=users(1), routes=[route(case)], profile=profile()
         )
-    assert len(state.requests) == len(result.samples) == 100
+    error_counts = Counter(sample.error_code for sample in result.samples)
+    assert len(state.requests) == len(result.samples) == 100, (result.stop_reason, error_counts)
     assert result.cleanup_passed and result.stop_reason is None
-    assert all(
-        sample.outcome == "failure" and sample.error_code == code for sample in result.samples
-    )
+    assert error_counts == {code: 100}
+    assert all(sample.outcome == "failure" for sample in result.samples)
     assert all(sample.http_status == status and sample.started for sample in result.samples)
     if case == "stream-large":
         assert all((sample.response_bytes or 0) > 4096 for sample in result.samples)
@@ -356,7 +361,7 @@ async def test_real_request_timeout_records_attempts_and_partial_response(case: 
             origin=origin,
             users=users(1),
             routes=[route(case)],
-            profile=profile(timeout=0.05, duration=5.0, concurrency=4),
+            profile=profile(timeout=0.05),
         )
     assert 0 < len(state.requests) <= len(result.samples) == 100
     assert result.stop_reason is None

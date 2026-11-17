@@ -47,6 +47,7 @@ from windops_backend.operations.load_resources import (
 )
 from windops_backend.operations.load_runner import AllowedGet, PrivateUser, run_load
 from windops_backend.operations.load_services_processes import OwnedRoleProcesses, TrustedLaunch
+from windops_backend.operations.report_io import write_new_json
 
 ROOT = Path(__file__).resolve().parents[4]
 RUN_ROOT = ROOT / ".artifacts" / "performance-e2e"
@@ -576,7 +577,5 @@ async def execute_software(profile: LoadProfile) -> tuple[Path, dict[str, Any]]:
         # Return precisely the persisted wire representation, including resource
         # issue tuples, so callers can verify the saved report without coercion.
         report = json.loads(json.dumps(report, ensure_ascii=False, allow_nan=False))
-        with (directory / "report.json").open("x", encoding="utf-8") as stream:
-            json.dump(report, stream, indent=2, ensure_ascii=False, allow_nan=False)
-            stream.write("\n")
+        write_new_json(directory / "report.json", report, pretty=True)
     return directory / "report.json", report

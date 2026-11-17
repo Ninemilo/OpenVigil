@@ -233,6 +233,15 @@ def test_release_workflow_requires_document_supply_chain_and_final_qualification
         (Path(__file__).parents[2] / ".github/workflows/release.yml").read_text()
     )
     steps = workflow["jobs"]["build-and-qualify"]["steps"]
+    step_positions = {step["name"]: index for index, step in enumerate(steps)}
+    stage_inputs = step_positions["Stage approved document models and offline probe inputs"]
+    assert step_positions["Install frozen release tooling"] < stage_inputs
+    assert stage_inputs < step_positions["Log in to protected registry"]
+    assert all(
+        stage_inputs < index
+        for index, step in enumerate(steps)
+        if step.get("with", {}).get("push") is True
+    )
     build = next(step for step in steps if step.get("id") == "document-build")
     assert build["with"]["file"] == "backend/Dockerfile.document-parser"
     assert "${{ steps.build.outputs.digest }}" in build["with"]["build-args"]

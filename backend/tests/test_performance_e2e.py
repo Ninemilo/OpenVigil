@@ -20,6 +20,7 @@ from collections.abc import AsyncIterator
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree
 
 import httpx
 import pytest
@@ -106,6 +107,44 @@ async def _wait_file(path: Path) -> None:
     raise AssertionError("owned child did not publish its marker")
 
 
+@pytest.fixture
+def isolated_load_client(request: pytest.FixtureRequest, tmp_path: Path) -> bool:
+    """Run cases that measure their own client in a fresh pytest process."""
+    case = f"tests/{Path(__file__).name}::{request.node.name}"
+    marker = "OPENVIGIL_ISOLATED_LOAD_TEST_CASE"
+    if os.getenv(marker) == case:
+        return True
+    report = tmp_path / "isolated-client.xml"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            case,
+            "-o",
+            "addopts=",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--basetemp",
+            str(tmp_path / "isolated-client"),
+            "--junitxml",
+            str(report),
+        ],
+        cwd=ROOT / "backend",
+        env={**os.environ, marker: case},
+        capture_output=True,
+        text=True,
+        timeout=210,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    cases = ElementTree.parse(report).findall(".//testcase")
+    assert len(cases) == 1 and cases[0].get("name") == request.node.name
+    assert not len(cases[0]), result.stdout + result.stderr
+    return False
+
+
 @pytest.mark.asyncio
 async def test_real_api_tree_records_launcher_interpreter_memory_cpu_and_rejects_wrong_identity(
     tmp_path: Path,
@@ -174,7 +213,10 @@ async def test_real_api_tree_records_launcher_interpreter_memory_cpu_and_rejects
 @pytest.mark.asyncio
 async def test_real_new_descendant_cancels_fixed_resource_plan_and_entire_tree_is_cleaned(
     tmp_path: Path,
+    isolated_load_client: bool,
 ) -> None:
+    if not isolated_load_client:
+        return
     owner = _resource_child_owner(tmp_path)
     members: tuple[ProcessIdentity, ...] = ()
     guard = None
@@ -751,7 +793,10 @@ def test_software_cli_real_loopback_100_per_route_measurement_is_not_qualificati
 async def test_real_loopback_resource_stop_failure_keeps_ledger_and_stops_owned_server(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    isolated_load_client: bool,
 ) -> None:
+    if not isolated_load_client:
+        return
     stopped: list[ProcessResourceSampler] = []
     real_stop = ProcessResourceSampler.stop
 
@@ -784,7 +829,10 @@ async def test_real_loopback_resource_stop_failure_keeps_ledger_and_stops_owned_
 async def test_real_loopback_cancellation_during_child_cleanup_still_waits_and_reports(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    isolated_load_client: bool,
 ) -> None:
+    if not isolated_load_client:
+        return
     bootstrap = tmp_path / "delayed-owned-server.py"
     bootstrap.write_text(
         "import asyncio\n"

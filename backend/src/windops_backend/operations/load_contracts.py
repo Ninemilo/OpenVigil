@@ -356,15 +356,41 @@ def evaluate_workload(
         missing.append("missing_request_measurements")
     if summary.unmeasured_started:
         missing.append("missing_attempt_latency")
+    return evaluate_budget_measurements(
+        budget,
+        resources,
+        p95_ms=summary.p95_ms,
+        p99_ms=summary.p99_ms,
+        error_rate=summary.error_rate,
+        maximum_response_bytes=summary.maximum_response_bytes,
+        failures=failures,
+        missing=missing,
+    )
+
+
+def evaluate_budget_measurements(
+    budget: WorkloadBudget,
+    resources: ResourceObservation,
+    *,
+    p95_ms: float | None,
+    p99_ms: float | None,
+    error_rate: float | None,
+    maximum_response_bytes: int | None,
+    failures: Sequence[str],
+    missing: Sequence[str],
+) -> BudgetVerdict:
+    """Apply shared limits while retaining the workload's own evidence reasons."""
+    failures = list(failures)
+    missing = list(missing)
     if not resources.available:
         missing.append("resources_unavailable")
     if resources.expected_samples == 0 or resources.observed_samples != resources.expected_samples:
         missing.append("resource_samples_incomplete")
     for value, maximum, code in (
-        (summary.p95_ms, budget.p95_ms, "p95_exceeded"),
-        (summary.p99_ms, budget.p99_ms, "p99_exceeded"),
-        (summary.error_rate, budget.maximum_error_rate, "error_rate_exceeded"),
-        (summary.maximum_response_bytes, budget.maximum_response_bytes, "response_bytes_exceeded"),
+        (p95_ms, budget.p95_ms, "p95_exceeded"),
+        (p99_ms, budget.p99_ms, "p99_exceeded"),
+        (error_rate, budget.maximum_error_rate, "error_rate_exceeded"),
+        (maximum_response_bytes, budget.maximum_response_bytes, "response_bytes_exceeded"),
         (
             resources.peak_process_rss_bytes,
             budget.maximum_process_rss_bytes,

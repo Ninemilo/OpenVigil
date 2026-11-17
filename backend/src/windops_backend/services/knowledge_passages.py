@@ -23,6 +23,29 @@ from windops_backend.models import KnowledgeDocument
 from windops_backend.services.knowledge_access import knowledge_scope_clause
 
 
+def pdf_page_matches_locator(passage: KnowledgePassage) -> bool:
+    page = passage.page_number
+    if page is None or page < 1:
+        return False
+    locator = passage.native_locator
+    if locator.get("kind") == "pdf_page":
+        locator_page = locator.get("page_number")
+        return type(locator_page) is int and locator_page == page
+    if locator.get("kind") != "docling_pdf_item":
+        return False
+    regions = locator.get("regions")
+    return (
+        isinstance(regions, list)
+        and bool(regions)
+        and all(
+            isinstance(region, dict)
+            and type(region.get("page_number")) is int
+            and region["page_number"] == page
+            for region in regions
+        )
+    )
+
+
 def add_passages(
     session: AsyncSession, document: KnowledgeDocument, parsed: ParsedKnowledge, *, verified: bool
 ) -> list[KnowledgePassage]:

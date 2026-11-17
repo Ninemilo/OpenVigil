@@ -14,6 +14,7 @@ from windops_backend.model_knowledge_review import (
     KnowledgeNumericReviewEvent,
 )
 from windops_backend.models import CommandReceipt, DomainEvent, KnowledgePassage
+from windops_backend.services.knowledge_passages import pdf_page_matches_locator
 
 
 async def document_numeric_review_evidence(
@@ -37,6 +38,8 @@ async def document_numeric_review_evidence(
     passage = next((row for row in passages if row.id == observed.get("passage_id")), None)
     if passage is None or "+123.45 kN" not in passage.text:
         raise RuntimeError("numeric review acceptance has no matching immutable passage")
+    if not pdf_page_matches_locator(passage):
+        raise RuntimeError("numeric review acceptance source page does not match its locator")
     if hashlib.sha256(passage.text.encode()).hexdigest() != passage.text_sha256:
         raise RuntimeError("numeric review acceptance source text hash changed")
     head = await session.scalar(

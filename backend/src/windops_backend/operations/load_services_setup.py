@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -24,6 +23,7 @@ from windops_backend.operations.load_services_dataset import (
 )
 from windops_backend.operations.load_services_server import load_runtime
 from windops_backend.operations.load_software import ROOT
+from windops_backend.operations.report_io import write_new_json
 
 
 def migration_config() -> Config:
@@ -117,12 +117,10 @@ def main() -> int:
             raise RuntimeError("SETUP_MIGRATION_HEAD_AMBIGUOUS")
         command.upgrade(config, "head")
         evidence = asyncio.run(initialize(settings, args.history_rows, heads[0]))
-        with (args.run_directory / "private" / "setup.json").open("x", encoding="utf-8") as stream:
-            json.dump(
-                {"run_id": args.run_id, "runtime_sha256": args.runtime_sha256, **evidence},
-                stream,
-                allow_nan=False,
-            )
+        write_new_json(
+            args.run_directory / "private" / "setup.json",
+            {"run_id": args.run_id, "runtime_sha256": args.runtime_sha256, **evidence},
+        )
         return 0
     except Exception:
         print("SERVICES_SETUP_FAILED")

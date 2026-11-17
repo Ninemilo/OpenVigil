@@ -1,5 +1,6 @@
 import hashlib
 import json
+import runpy
 import shutil
 
 import pytest
@@ -8,6 +9,17 @@ from scripts.prepare_business_document_fixture import FIXTURE_ROOT, prepare_docu
 
 from test_document_parse_contract import model_bundle
 from windops_backend.operations.document_smoke import DocumentSmokeExpectation
+
+
+def test_prepared_manifest_matches_reviewed_bytes_from_posix_path_order():
+    expected = (FIXTURE_ROOT / "model-manifest.json").read_bytes()
+    manifest = json.loads(expected)
+    posix_order = sorted(manifest["files"], key=lambda entry: entry["path"])
+    assert posix_order != manifest["files"]
+
+    script = FIXTURE_ROOT.parents[3] / "scripts/prepare-document-models.py"
+    render = runpy.run_path(str(script))["render_model_manifest"]
+    assert render(manifest["sources"], posix_order) == expected
 
 
 def test_committed_scan_is_an_image_only_two_page_pdf_with_frozen_bytes():

@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend" / "src"))
 
+from windops_backend.document_parse_identity import DOCUMENT_PARSER_VERSIONS
 from windops_backend.document_parse_models import (
     MANIFEST_NAME,
     MAX_MODEL_BUNDLE_BYTES,
@@ -36,6 +37,29 @@ MODEL_SNAPSHOTS = (
 )
 
 
+def render_model_manifest(
+    sources: list[dict[str, str]], files: list[dict[str, str | int]]
+) -> bytes:
+    # Keep the reviewed manifest's case-insensitive order on every platform.
+    # Path ordering depends on its filesystem flavour.
+    ordered_files = sorted(
+        files, key=lambda entry: (str(entry["path"]).casefold(), str(entry["path"]))
+    )
+    return (
+        json.dumps(
+            {
+                "contract": "openvigil.document-models.v1",
+                "docling_version": DOCUMENT_PARSER_VERSIONS["docling-slim"],
+                "sources": sources,
+                "files": ordered_files,
+            },
+            indent=2,
+            sort_keys=True,
+        ).encode()
+        + b"\n"
+    )
+
+
 def prepare(output: Path) -> str:
     from importlib.metadata import version
 
@@ -50,7 +74,10 @@ def prepare(output: Path) -> str:
     from rapidocr.inference_engine.base import FileInfo, InferSession
     from rapidocr.utils.typings import ModelType, OCRVersion, TaskType
 
-    if version("docling-slim") != "2.133.0" or version("rapidocr") != "3.9.2":
+    if any(
+        version(package) != DOCUMENT_PARSER_VERSIONS[package]
+        for package in ("docling-slim", "rapidocr")
+    ):
         raise ValueError(
             "prepare models using the fixed document parser dependency lock"
         )
@@ -160,7 +187,7 @@ def prepare(output: Path) -> str:
                     }
                 )
     files = []
-    for path in sorted(output.rglob("*")):
+    for path in output.rglob("*"):
         if not path.is_file() or ".cache" in path.relative_to(output).parts:
             continue
         if path.name == MANIFEST_NAME:
@@ -174,19 +201,7 @@ def prepare(output: Path) -> str:
                 "size_bytes": path.stat().st_size,
             }
         )
-    raw = (
-        json.dumps(
-            {
-                "contract": "openvigil.document-models.v1",
-                "docling_version": "2.133.0",
-                "sources": sources,
-                "files": files,
-            },
-            indent=2,
-            sort_keys=True,
-        ).encode()
-        + b"\n"
-    )
+    raw = render_model_manifest(sources, files)
     manifest_path.write_bytes(raw)
     digest = hashlib.sha256(raw).hexdigest()
     verify_model_bundle(output, digest)

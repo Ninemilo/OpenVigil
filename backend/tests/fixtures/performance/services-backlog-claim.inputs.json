@@ -1,8 +1,8 @@
 {
   "schema_version": "openvigil.load-services-inputs.v1",
-  "parser_python": ".artifacts/improvements-20261023/parser-env/Scripts/python.exe",
-  "parser_models": ".artifacts/document-parser-20261007/models",
-  "parser_manifest_sha256": "3d2fdba8d0ad8dc7e1181e4e9f97b65d5dc788dfe57e6f8838f2402106f0e316",
+  "parser_python": ".artifacts/improvements-20261111/parser-dependency-candidate-v1/runtime/Scripts/python.exe",
+  "parser_models": ".artifacts/improvements-20261111/models-v2",
+  "parser_manifest_sha256": "811ead7bd95a4498960e57be7f09c5e4cbc1de5a4a6ebf381c775e15565a1350",
   "documents": [
     {
       "alias": "scan-a",

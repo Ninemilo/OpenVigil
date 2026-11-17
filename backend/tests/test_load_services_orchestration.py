@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib.util
 import json
 import time
@@ -40,6 +41,10 @@ def test_registered_profiles_have_matching_bounded_private_inputs(name):
     plan = parse_load_profile((directory / f"{name}.json").read_bytes())
     registered = parse_services_inputs((directory / f"{name}.inputs.json").read_bytes())
     execution.validate_plan(plan, registered)
+    if registered.documents:
+        model_manifest = directory.parent / "document/model-manifest.json"
+        model_digest = hashlib.sha256(model_manifest.read_bytes()).hexdigest()
+        assert registered.parser_manifest_sha256 == model_digest
     for source in registered.documents:
         assert source.classification == "reviewed_synthetic"
         assert source.expected_source_pages == 2 and source.expected_passages == 15

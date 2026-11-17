@@ -489,6 +489,53 @@ async def test_actual_persisted_source_drift_blocks_successful_receipt_replay(ap
         assert receipt.replay_count == 0
 
 
+@pytest.mark.parametrize("docling_locator", [False, True])
+async def test_page_column_must_match_locator_for_grant_and_replay(app, client, docling_locator):
+    document, passage, url, _, payload = await prepared(app, client)
+    passage_id = passage["passage_id"]
+    if docling_locator:
+        # Exercise the stored Docling locator contract without running OCR in this API test.
+        async with app.state.session_factory() as session, session.begin():
+            piece = await session.get(KnowledgePassage, passage_id)
+            piece.native_locator = {
+                "kind": "docling_pdf_item",
+                "source_verified": True,
+                "regions": [
+                    {
+                        "page_number": 2,
+                        "bbox": [20, 100, 150, 110],
+                        "page_width": 300,
+                        "page_height": 400,
+                        "coordinate_space": "pdf_points_top_left",
+                    }
+                ],
+            }
+        detail = await client.get(url, headers=MANAGER)
+        assert detail.status_code == 200
+        payload.update(detail.json()["source_binding"])
+
+    source = f"/api/v1/knowledge/documents/{document['document_id']}/source"
+    grant = await client.get(source, params={"passage_id": passage_id}, headers=MANAGER)
+    assert grant.status_code == 200 and grant.json()["page_number"] == 2
+    key = str(uuid4())
+    assert (await command(client, url, payload, key=key)).status_code == 200
+
+    async with app.state.session_factory() as session, session.begin():
+        piece = await session.get(KnowledgePassage, passage_id)
+        piece.page_number = 1
+
+    replay = await command(client, url, payload, key=key)
+    detail = await client.get(url, headers=MANAGER)
+    grant = await client.get(source, params={"passage_id": passage_id}, headers=MANAGER)
+    assert (replay.status_code, detail.status_code, grant.status_code) == (409, 409, 409)
+    assert (await client.get(source, headers=MANAGER)).status_code == 200
+    async with app.state.session_factory() as session:
+        receipt = await session.scalar(
+            select(CommandReceipt).where(CommandReceipt.idempotency_key == key)
+        )
+        assert receipt.replay_count == 0
+
+
 async def test_document_entity_grant_and_anonymous_review_access(app, client):
     document, _, url, _, payload = await prepared(app, client)
     scoped = {

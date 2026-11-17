@@ -8,7 +8,7 @@ import hashlib
 import importlib.metadata
 import json
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 from contextlib import ExitStack
 from contextvars import ContextVar
@@ -504,9 +504,12 @@ def main(argv: list[str] | None = None) -> int:
                 + 60
             )
         try:
-            completed = subprocess.run(
+            # The current interpreter and worker module are fixed. Paths and
+            # parsed flags are passed as separate arguments without a shell.
+            completed = subprocess.run(  # nosec B603
                 command,
                 env=env,
+                shell=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=False,
@@ -523,17 +526,20 @@ def main(argv: list[str] | None = None) -> int:
                 },
             )
             return 2
-        if not (args.output / "run.json").is_file() and not (args.output / "failure.json").exists():
-            write_new_json(
-                args.output / "failure.json",
-                {
-                    "status": "failed",
-                    "error_code": "worker_did_not_write_report",
-                    "exit_code": completed.returncode,
-                },
-            )
+        exit_code = completed.returncode
+        if not (args.output / "run.json").is_file():
+            if not (args.output / "failure.json").exists():
+                write_new_json(
+                    args.output / "failure.json",
+                    {
+                        "status": "failed",
+                        "error_code": "worker_did_not_write_report",
+                        "exit_code": completed.returncode,
+                    },
+                )
+            exit_code = exit_code or 2
         print(f"Workflow evaluation evidence saved: {args.output}")
-        return completed.returncode
+        return exit_code
     except Exception as exc:
         if args.command == "_worker" and args.output.is_dir():
             if not (args.output / "run.json").exists():

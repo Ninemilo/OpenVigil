@@ -61,7 +61,7 @@ $env:PYTHONPATH = 'backend/src'
 python backend/scripts/run_performance_e2e.py --profile backend/tests/fixtures/performance/services-reads.json --services-inputs backend/tests/fixtures/performance/services-reads.inputs.json
 ```
 
-文档场景的输入清单指向项目内已核对的合成PDF、独立解析Python和只读模型目录；其默认路径反映本次本地准备位置。其他机器应复制清单至项目内私有目录，填写实际已安装的解析环境和模型路径，并核对清单SHA。不得填占位模型、替换parser输出或把合成PDF称作现场资料。输入在创建服务前检查路径、文件字节、页数、页面尺寸及模型清单，运行后再次核对；文档ID每次独立生成。每域使用相同扫描件是明确的重复负载，不代表不同真实报告的统计多样性。
+文档场景的输入清单指向项目内已核对的合成PDF、独立解析Python和只读模型目录；其默认路径反映本次本地准备位置，模型清单 SHA 与 `backend/tests/fixtures/document/model-manifest.json` 一致。更新冻结模型时同步更新三份文档场景输入的 SHA。其他机器应复制清单至项目内私有目录，填写实际已安装的解析环境和模型路径，并核对清单SHA。不得填占位模型、替换parser输出或把合成PDF称作现场资料。输入在创建服务前检查路径、文件字节、页数、页面尺寸及模型清单，运行后再次核对；文档ID每次独立生成。每域使用相同扫描件是明确的重复负载，不代表不同真实报告的统计多样性。
 
 服务配置从显式参数构造，不读取根`.env`或继承供应商凭据。API使用DEVELOPMENT选择真实MinIO/Redis路径、请求绑定的JWT、服务端scope和原限流值；worker使用TEST选择确定性离线embedding。读取原件/索引/审计仍走实际服务；确定性embedding不能用作RAG语义质量结论。TLS证书只面向本次127.0.0.1，HTTP客户端校验证书和主机名。
 
@@ -76,4 +76,4 @@ python backend/scripts/run_performance_e2e.py --profile backend/tests/fixtures/p
 - 清理不依赖后续证据是否成功；重复取消仍等待自有资源清理。总清理预算默认180秒，构成操作各有时限；为避免遗留自有进程，超过总预算时继续完成这些有界清理并将超预算记为失败。未知资源不会被强制删除。
 - JSON报告保存在 `.artifacts/performance-e2e/<run-id>/report.json`，包括未执行项和失败。私有配置、命令日志、签名材料位于同目录的`private/`，不得上传。服务进程停止后保留本地证据文件，报告不包含凭据、签名URL或文档原文。
 
-services成功也仅为`measurement_only`。文档上限32份，成功样本不足100时P95/P99显示为空并记录`insufficient_samples`；没有从少量文件推断尾延迟资格。正式预算未通过时状态为`budget_unqualified`；真实服务完整性失败时为`failed`。应同时阅读逐路线预算理由、HTTP/文档账本、资源覆盖、源身份和清理结果。
+services 成功也仅为 `measurement_only`。文档上限 32 份，成功样本不足 100 时 P95/P99 为空，统计记录 `insufficient_samples`，对应预算记录 `insufficient_tail_samples`。`budget_verdicts` 分别记录读取路线、文档批量和积压场景。文档预算使用错误率、实际响应字节及采样资源，并保留可用的延迟证据。正式预算未通过时状态为 `budget_unqualified`。真实服务完整性失败时状态为 `failed`。应同时阅读各预算理由、HTTP 和文档账本、资源覆盖、源身份和清理结果。

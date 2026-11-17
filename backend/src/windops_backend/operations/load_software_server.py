@@ -20,6 +20,7 @@ from windops_backend.config import Settings
 from windops_backend.main import create_app
 from windops_backend.operations.load_dataset import KEY_FIELDS, SUBJECTS, USER_SCOPES
 from windops_backend.operations.load_resources import register_process
+from windops_backend.operations.report_io import dump_json_receipt
 
 PRIVATE_STARTUP_ENV = "OPENVIGIL_SOFTWARE_PRIVATE_STARTUP"
 
@@ -151,7 +152,7 @@ async def serve(run_directory: Path, run_id: str, keys: dict[str, str]) -> None:
                     "resource_accounting": "load_client_and_owned_api_tree_v1",
                 }
                 identity = register_process(label="api_interpreter")
-                json.dump(
+                dump_json_receipt(
                     {
                         "run_id": run_id,
                         "port": port,

@@ -5,10 +5,10 @@ from importlib.metadata import version
 from pathlib import Path
 
 DOCUMENT_PARSER_VERSIONS = {
-    "docling-slim": "2.133.0",
-    "docling-core": "2.100.0",
-    "docling-parse": "7.22.2",
-    "docling-ibm-models": "4.0.3",
+    "docling-slim": "2.150.0",
+    "docling-core": "2.106.0",
+    "docling-parse": "7.25.0",
+    "docling-ibm-models": "4.0.4",
     "rapidocr": "3.9.2",
     "onnxruntime": "1.30.0",
     "numpy": "2.5.3",
@@ -16,7 +16,7 @@ DOCUMENT_PARSER_VERSIONS = {
     "torch": "2.14.1+cpu",
     "torchvision": "0.29.1+cpu",
     "pypdfium2": "5.14.0",
-    "pypdf": "6.19.0",
+    "pypdf": "6.21.4",
 }
 EXECUTION_MODULES = (
     "document_parse_compute.py",

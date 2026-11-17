@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from windops_backend.document_parse_identity import DOCUMENT_PARSER_VERSIONS
 
 MANIFEST_NAME = "openvigil-model-manifest.json"
 MAX_MODEL_BUNDLE_BYTES = 2 * 1024 * 1024 * 1024
@@ -33,7 +36,9 @@ class ModelManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
     contract: str = Field(pattern=r"^openvigil\.document-models\.v1$")
-    docling_version: str = Field(pattern=r"^2\.133\.0$")
+    docling_version: str = Field(
+        pattern=rf"^{re.escape(DOCUMENT_PARSER_VERSIONS['docling-slim'])}$"
+    )
     sources: list[ModelSource] = Field(min_length=3, max_length=16)
     files: list[ModelFile] = Field(min_length=3, max_length=256)
 

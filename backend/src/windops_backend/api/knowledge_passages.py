@@ -12,7 +12,7 @@ from windops_backend.api.deps import (
     require_read_access,
 )
 from windops_backend.config import Settings
-from windops_backend.errors import InvalidTransitionError, NotFoundError
+from windops_backend.errors import ConflictError, InvalidTransitionError, NotFoundError
 from windops_backend.model_knowledge_passage import KnowledgePassage
 from windops_backend.models import KnowledgeDocument
 from windops_backend.services.knowledge import (
@@ -20,7 +20,7 @@ from windops_backend.services.knowledge import (
     MAX_KNOWLEDGE_ARTIFACT_BYTES,
 )
 from windops_backend.services.knowledge_access import knowledge_document_query
-from windops_backend.services.knowledge_passages import serialize_passage
+from windops_backend.services.knowledge_passages import pdf_page_matches_locator, serialize_passage
 from windops_backend.storage import ArtifactVerifier
 
 router = APIRouter()
@@ -103,6 +103,12 @@ async def knowledge_document_source(
             raise InvalidTransitionError(
                 "passage does not match the immutable document source version"
             )
+        if (
+            document.content_type == "application/pdf"
+            and passage.native_locator.get("source_verified") is True
+            and not pdf_page_matches_locator(passage)
+        ):
+            raise ConflictError("immutable passage source page changed")
     if not document.artifact_uri or not document.artifact_sha256 or not document.content_type:
         raise InvalidTransitionError("historical document has no verified source artifact")
     try:

@@ -58,7 +58,7 @@ python -m windops_backend.operations.workflow_eval run `
 
 预算在每次 completion/embedding 请求之前预留。completion 输入费用按所声明的模型完整容量预留，embedding 按批内每条输入分别预留完整容量；输出按明确 token 上限预留，不用“字节数等于 token 数”的估算。生产重试中的每次实际 embedding 请求均计入。未知用量、错模型、超时或取消保留费用预留并停止新请求，不能把费用写成零。响应已经收费但被 schema/业务门槛拒绝，也保留用量与费用。费用是冻结价格下的估算，不保证供应商账单绝对一致。
 
-安装版 LiteLLM 1.96.2 的 embedding 路径会把显式 `max_retries=0` 回退到默认值 2，因此只给顶层函数传零不足以关闭隐藏重试。专用子进程在导入前设置 `DEFAULT_MAX_RETRIES=0`、使用本地模型元数据，并固定/核验运行时重试、fallback、alias、cache、callback 和参数修复开关；实际 OpenAI 客户端也必须报告零重试。当前仅支持冻结的 LiteLLM 1.96.2 / OpenAI 2.54.0 的直接 OpenAI-compatible chat 与 embedding 路径；Responses、Router、其他供应商路由和未经验证的 SDK 版本均明确拒绝。退出时恢复所有覆盖的 SDK 全局、客户端检查、transport 和环境变量。实际 SDK 的离线 HTTP 边界测试不等于真实供应商或账单验证。
+冻结版 LiteLLM 1.100.4 的 embedding 路径会把显式 `max_retries=0` 回退到默认值 2，因此只给顶层函数传零不足以关闭隐藏重试。专用子进程在导入前设置 `DEFAULT_MAX_RETRIES=0`、使用本地模型元数据，并固定和核验运行时重试、fallback、alias、cache、callback 和参数修复开关。实际 OpenAI 客户端也必须报告零重试。当前仅支持冻结的 LiteLLM 1.100.4 / OpenAI 2.54.0 的直接 OpenAI-compatible chat 与 embedding 路径。Responses、Router、其他供应商路由和未经验证的 SDK 版本均明确拒绝。退出时恢复所有覆盖的 SDK 全局、客户端检查、transport 和环境变量。实际供应商和账单需另外验证。
 
 每案例生产 outbox 段最多 240 秒，保持在现有五分钟领取租约内；准备阶段至公开结果审计同时受总工作截止约束。结果读取另限10秒，最后清理有独立30秒宽限，父进程也有终止上限。总工作预算不是包含最后清理的绝对 wall-clock 上界，前面案例的清理时间仍保守减少后续工作余量。取消不伪造生产终态；清理和迁移的失败单独保留。数据库创建确认丢失时不猜测归属或删除，报告生成的身份供人工核查。
 
@@ -70,4 +70,4 @@ python -m windops_backend.operations.workflow_eval run `
 
 评分检查分类、正确拒答、引用 ID 与来源映射、必需资料召回、禁止来源/短语、方案绑定、五维审核、无审批/工单、耗时和费用证据。引用 ID 存在并不等于语义支持成立；禁止短语检查也不能穷尽所有不安全建议。报告分别保留自动评分、软件边界、专家与现场资格，不将有限规则冒充专家评审。
 
-`run` 在任何案例未到达人工审核时返回非零，包括正常被诊断门槛拦下的拒答；这不妨碍随后 `score` 将有完整证据的正确拒答计为通过。`score` 对标签不匹配、缺失案例或自动评分失败返回非零。外部资格始终单独记录，实际 PostgreSQL、供应商调用和专家样本必须有各自验收证据。
+`run` 在任何案例未到达人工审核或子进程未产出 `run.json` 时返回非零。被诊断门槛拦下的拒答在有完整证据时仍可由 `score` 计为通过。`score` 对标签不匹配、缺失案例或自动评分失败返回非零。外部资格始终单独记录，实际 PostgreSQL、供应商调用和专家样本必须有各自验收证据。

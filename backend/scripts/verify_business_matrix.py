@@ -8,9 +8,45 @@ import re
 from pathlib import Path
 from typing import Any
 
-SCENARIOS = frozenset(
-    {"maintenance", "structural", "structural-modal", "structural-scope", "document"}
-)
+_PERSISTED_COUNTS = {
+    "maintenance": {"field_task_evidence": 5, "work_orders": 1},
+    "structural": {"structural_analysis_runs": 2, "work_orders": 1},
+    "structural-modal": {"structural_analysis_runs": 32, "health_baselines": 1},
+    "structural-scope": {"engineering_claim_reviews": 1, "work_orders": 0},
+    "document": {"scenario_passages": 15, "scenario_index_jobs": 1},
+}
+SCENARIOS = frozenset(_PERSISTED_COUNTS)
+
+
+def _verify_persisted_evidence(report: dict[str, Any], scenario: str) -> None:
+    database = report.get("database")
+    if not isinstance(database, dict):
+        raise ValueError(f"{scenario}: persisted business evidence is missing")
+    counts = database.get("counts")
+    expected_counts = _PERSISTED_COUNTS[scenario]
+    if (
+        not isinstance(counts, dict)
+        or any(type(count) is not int or count < 0 for count in counts.values())
+        or any(counts.get(name) != expected for name, expected in expected_counts.items())
+    ):
+        raise ValueError(f"{scenario}: persisted business evidence does not match the scenario")
+    artifacts = database.get("artifacts")
+    objects = report.get("verified_minio_objects")
+    if (
+        type(objects) is not int
+        or objects < 1
+        or not isinstance(artifacts, list)
+        or len(artifacts) != objects
+        or any(
+            not isinstance(artifact, dict)
+            or not isinstance(artifact.get("uri"), str)
+            or not artifact["uri"]
+            or not isinstance(artifact.get("sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", artifact["sha256"]) is None
+            for artifact in artifacts
+        )
+    ):
+        raise ValueError(f"{scenario}: original object roundtrip was not verified")
 
 
 def verify_business_matrix(
@@ -69,11 +105,7 @@ def verify_business_matrix(
             or re.fullmatch(r"[0-9a-f]{64}", str(browser.get("junit_sha256", ""))) is None
         ):
             raise ValueError(f"{scenario}: real non-skipped browser evidence is missing")
-        objects = report.get("verified_minio_objects")
-        if type(objects) is not int or objects < 1:
-            raise ValueError(f"{scenario}: original object roundtrip was not verified")
-        if not isinstance(report.get("database"), dict) or not report["database"].get("counts"):
-            raise ValueError(f"{scenario}: persisted business evidence is missing")
+        _verify_persisted_evidence(report, scenario)
     if observed != SCENARIOS:
         raise ValueError("matrix does not cover all five scenarios")
     return sorted(observed)

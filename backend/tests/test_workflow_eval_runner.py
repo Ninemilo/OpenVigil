@@ -234,6 +234,44 @@ def test_cli_requires_new_output_and_explicit_paid_consent(tmp_path: Path) -> No
     assert not target.exists()
 
 
+@pytest.mark.parametrize(("returncode", "failure_written"), [(0, False), (0, True), (1, False)])
+def test_parent_rejects_missing_worker_report_even_with_zero_exit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, returncode: int, failure_written: bool
+) -> None:
+    output = tmp_path / "missing-report"
+    failure = output / "failure.json"
+    worker_failure = {"status": "failed", "error_code": "worker_report_error"}
+
+    def run_worker(command, **kwargs):
+        if failure_written:
+            failure.write_text(json.dumps(worker_failure), encoding="utf-8")
+        return subprocess.CompletedProcess(command, returncode)
+
+    monkeypatch.setattr(subprocess, "run", run_worker)
+    result = main(
+        [
+            "run",
+            "--inputs",
+            str(FIXTURES / "inputs.json"),
+            "--artifact-root",
+            str(FIXTURES),
+            "--output",
+            str(output),
+        ]
+    )
+    assert result == (returncode or 2)
+    assert not (output / "run.json").exists()
+    assert json.loads(failure.read_bytes()) == (
+        worker_failure
+        if failure_written
+        else {
+            "status": "failed",
+            "error_code": "worker_did_not_write_report",
+            "exit_code": returncode,
+        }
+    )
+
+
 def test_source_only_cli_subprocess_freezes_inputs_without_labels(tmp_path: Path) -> None:
     # Only copy inputs, no labels file exists anywhere in this evidence directory.
     inputs = tmp_path / "source-only.json"

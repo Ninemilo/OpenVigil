@@ -23,9 +23,11 @@ from uuid import uuid4
 
 from windops_backend.operations.load_backlog import BacklogCallbacks, BacklogLimits, run_backlog
 from windops_backend.operations.load_contracts import (
+    MIN_TAIL_SAMPLES,
     LoadProfile,
     ResourceObservation,
     RunIdentity,
+    evaluate_budget_measurements,
     evaluate_workload,
     nearest_rank,
     profile_sha256,
@@ -77,6 +79,7 @@ from windops_backend.operations.load_software import (
     source_snapshot,
     validate_run_directory,
 )
+from windops_backend.operations.report_io import write_new_json
 
 _CONTAINER_ROLES: tuple[ContainerRole, ...] = ("postgres", "redis", "minio", "neo4j")
 
@@ -169,6 +172,7 @@ def document_summary(batch: DocumentBatchResult, planned: int) -> dict[str, Any]
         if document.outcome == "indexed" and start is not None and finish is not None:
             durations.append((finish - start) * 1000)
     indexed = sum(d.outcome == "indexed" for d in batch.documents)
+    tail_observed = len(durations) >= MIN_TAIL_SAMPLES
     return {
         "unit": "document_source_validation_through_index_observed_ms",
         "planned": planned,
@@ -176,9 +180,17 @@ def document_summary(batch: DocumentBatchResult, planned: int) -> dict[str, Any]
         "non_success": planned - indexed,
         "error_rate": (planned - indexed) / planned,
         "observed_success_durations_ms": durations,
-        "p95_ms": nearest_rank(durations, 0.95) if len(durations) >= 100 else None,
-        "p99_ms": nearest_rank(durations, 0.99) if len(durations) >= 100 else None,
-        "tail_evidence": "insufficient_samples" if len(durations) < 100 else "observed",
+        "p95_ms": nearest_rank(durations, 0.95) if tail_observed else None,
+        "p99_ms": nearest_rank(durations, 0.99) if tail_observed else None,
+        "tail_evidence": "observed" if tail_observed else "insufficient_samples",
+        "maximum_response_bytes": max(
+            (
+                sample.response_bytes
+                for sample in batch.http_samples
+                if sample.response_bytes is not None
+            ),
+            default=None,
+        ),
         "http_requests": len(batch.http_samples),
         "qualified": False,
     }
@@ -415,10 +427,38 @@ class _Measurement:
         }
         if total > self.profile.maximum_requests:
             self.report["failure_codes"].append("measurement_request_budget_exceeded")
-        if self.read_result is None:
+        if self.read_result is None and not self.batches:
             return
         observation = resource_observation(resources)
         self.report["summaries"], self.report["budget_verdicts"] = {}, {}
+        for workload, batch in self.batches.items():
+            summary = self.report["workloads"][workload]["summary"]
+            budget = next(b for b in self.profile.budgets if b.workload == workload)
+            failures = [] if batch.completed else ["incomplete_execution"]
+            if len(batch.documents) != summary["planned"]:
+                failures.append("sample_count_mismatch")
+            missing = []
+            if not summary["indexed"]:
+                missing.append("no_indexed_documents")
+            if summary["tail_evidence"] != "observed":
+                missing.append("insufficient_tail_samples")
+            if (
+                summary["maximum_response_bytes"] is None
+                or len(summary["observed_success_durations_ms"]) != summary["indexed"]
+            ):
+                missing.append("missing_document_measurements")
+            self.report["budget_verdicts"][workload] = evaluate_budget_measurements(
+                budget,
+                observation,
+                p95_ms=summary["p95_ms"],
+                p99_ms=summary["p99_ms"],
+                error_rate=summary["error_rate"],
+                maximum_response_bytes=summary["maximum_response_bytes"],
+                failures=failures,
+                missing=missing,
+            ).model_dump(mode="json")
+        if self.read_result is None:
+            return
         for route in self.routes:
             samples = [s for s in self.read_result.samples if s.route_id == route.route_id]
             summary = summarize_samples(samples, planned=self.profile.requests_per_route)
@@ -645,9 +685,7 @@ async def execute_services(
             report["status"] = "failed"
             report["external_services_verified"] = False
         report = json.loads(json.dumps(report, ensure_ascii=False, allow_nan=False))
-        with (directory / "report.json").open("x", encoding="utf-8") as stream:
-            json.dump(report, stream, ensure_ascii=False, indent=2, allow_nan=False)
-            stream.write("\n")
+        write_new_json(directory / "report.json", report, pretty=True)
     return directory / "report.json", report
 
 

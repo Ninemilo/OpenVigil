@@ -339,24 +339,33 @@ class ProcessResourceSampler:
             self._thread.start()
         return self
 
+    def _wait_until(self, deadline: float) -> bool:
+        # A wait can return before the monotonic deadline due to timer resolution.
+        while not self._stop.is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return True
+            self._stop.wait(remaining)
+        return False
+
     def _run(self) -> None:
         try:
-            if self._started is None:
+            started = self._started
+            if started is None:
                 raise RuntimeError("RESOURCE_SAMPLER_NOT_STARTED")
+            deadline = started + self.duration_seconds
             slot = 0
             while slot < self._planned:
-                remaining = self._started + slot * self.interval_seconds - time.monotonic()
-                if self._stop.wait(max(0.0, remaining)):
+                if not self._wait_until(started + slot * self.interval_seconds):
                     break
-                elapsed = time.monotonic() - self._started
-                if elapsed >= self.duration_seconds:
+                now = time.monotonic()
+                if now >= deadline:
                     break
                 # Missed intervals lower coverage; never issue a burst of catch-up reads.
-                slot = max(slot, int(elapsed / self.interval_seconds))
+                slot = max(slot, int((now - started) / self.interval_seconds))
                 self._take_sample(slot)
                 slot += 1
-            if not self._stop.is_set():
-                self._stop.wait(max(0.0, self._started + self.duration_seconds - time.monotonic()))
+            self._wait_until(deadline)
         except Exception as exc:
             self._fatal = type(exc).__name__
         finally:
@@ -422,7 +431,11 @@ class ProcessResourceSampler:
                 "interval_seconds": self.interval_seconds,
                 "planned_slot_count": self._planned,
                 "expected_slot_count": expected,
-                "completed_duration": elapsed >= self.duration_seconds,
+                "completed_duration": (
+                    self._started is not None
+                    and self._ended is not None
+                    and self._ended >= self._started + self.duration_seconds
+                ),
                 "fatal_error": self._fatal,
                 "processes": processes,
                 "aggregate": {

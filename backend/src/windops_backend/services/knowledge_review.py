@@ -32,6 +32,7 @@ from windops_backend.schema_knowledge_review import (
 from windops_backend.services.events import append_domain_event
 from windops_backend.services.knowledge import MAX_KNOWLEDGE_ARTIFACT_BYTES
 from windops_backend.services.knowledge_access import knowledge_document_query
+from windops_backend.services.knowledge_passages import pdf_page_matches_locator
 from windops_backend.storage import ArtifactVerifier
 
 REVIEW_ROLES = frozenset({"operations_manager", "maintenance_reviewer", "test_system"})
@@ -89,6 +90,7 @@ async def review_source(
         or hashlib.sha256(passage.text.encode()).hexdigest() != passage.text_sha256
         or document.body[passage.char_start : passage.char_end] != passage.text
         or len(passage.text) > 8000
+        or not pdf_page_matches_locator(passage)
     ):
         raise ConflictError("immutable passage source identity changed")
     binding = NumericSourceBinding(

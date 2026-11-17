@@ -259,6 +259,16 @@ def test_real_cross_layer_uses_one_frozen_environment_for_migrations_seed_and_se
         assert expected in steps[index]["run"]
 
 
+@pytest.mark.parametrize("job_name", ["real-cross-layer-e2e", "backend", "postgres-contract"])
+def test_uv_only_ci_jobs_do_not_register_a_pip_cache(job_name: str) -> None:
+    workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"][job_name]["steps"]
+    setup_python = next(
+        step for step in steps if step.get("uses", "").startswith("actions/setup-python@")
+    )
+    assert "cache" not in setup_python["with"]
+
+
 def test_release_image_smoke_requires_exact_production_identity_and_dependencies(
     tmp_path: Path,
 ) -> None:
@@ -555,6 +565,19 @@ def test_release_gate_fetches_all_check_attempts_without_hiding_pending_retries(
     source = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert '/check-runs?filter=all&per_page=100"' in source
     assert "--paginate" in source
+
+
+def test_release_workflow_reuses_frozen_tooling_environment() -> None:
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    job = workflow["jobs"]["build-and-qualify"]
+    assert job["env"]["UV_NO_SYNC"] == "1"
+    commands = [step.get("run", "") for step in job["steps"]]
+    frozen_install = "uv sync --project backend --frozen --all-extras"
+    assert [run for run in commands if "uv sync " in run] == [frozen_install]
+    install = commands.index(frozen_install)
+    runs = [index for index, run in enumerate(commands) if "uv run " in run]
+    assert runs and install < min(runs)
+    assert all("UV_NO_SYNC" not in step.get("env", {}) for step in job["steps"])
 
 
 def test_ci_workflow_enforces_immutable_quality_and_postgres_gates() -> None:

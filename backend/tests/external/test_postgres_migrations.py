@@ -74,7 +74,6 @@ REQUIRED_TIMESTAMP_COLUMNS = (
     ("knowledge_documents", "updated_at"),
     ("knowledge_passages", "created_at"),
     ("knowledge_numeric_reviews", "proposed_at"),
-    ("knowledge_numeric_reviews", "reviewed_at"),
     ("knowledge_numeric_review_events", "occurred_at"),
     ("engineering_claims", "created_at"),
     ("engineering_claim_reviews", "created_at"),
@@ -668,7 +667,10 @@ async def test_schema_contract_alignment_backfills_and_matches_orm(
                 text("SELECT created_at FROM tenants WHERE id = 'tenant-east-china'")
             )
             assert backfilled_at is not None
-            for table_name, column_name in REQUIRED_TIMESTAMP_COLUMNS:
+            timestamp_nullability = dict.fromkeys(REQUIRED_TIMESTAMP_COLUMNS, "NO")
+            # A pending review has no reviewer or decision time yet.
+            timestamp_nullability["knowledge_numeric_reviews", "reviewed_at"] = "YES"
+            for (table_name, column_name), expected_nullable in timestamp_nullability.items():
                 nullable = await connection.scalar(
                     text(
                         "SELECT is_nullable FROM information_schema.columns "
@@ -677,7 +679,24 @@ async def test_schema_contract_alignment_backfills_and_matches_orm(
                     ),
                     {"table_name": table_name, "column_name": column_name},
                 )
-                assert nullable == "NO", f"{table_name}.{column_name} remained nullable"
+                assert nullable == expected_nullable, (
+                    f"{table_name}.{column_name} nullability: expected {expected_nullable}, "
+                    f"observed {nullable}"
+                )
+
+            approval_check = await connection.scalar(
+                text(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                    "WHERE conrelid = 'public.knowledge_numeric_reviews'::regclass "
+                    "AND conname = 'ck_numeric_review_independent_approval' AND contype = 'c'"
+                )
+            )
+            assert approval_check is not None
+            approval_check = re.sub(r"::text|[()]", "", approval_check)
+            assert "status <> 'approved'" in approval_check
+            assert "reviewed_at IS NOT NULL" in approval_check
+            assert "reviewed_by IS NOT NULL" in approval_check
+            assert "reviewed_by <> proposed_by" in approval_check
 
             migrated_quality = (
                 await connection.execute(

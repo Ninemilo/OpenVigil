@@ -73,3 +73,17 @@ def test_operation_report_implementations_are_not_duplicated() -> None:
         "report_io.py"
     ]
     assert [name for name, source in sources.items() if "json.dump(" in source] == ["report_io.py"]
+
+
+@pytest.mark.parametrize(
+    ("pretty", "expected"),
+    [(False, '{"z": "\\u98ce", "a": 1}'), (True, '{\n  "z": "风",\n  "a": 1\n}\n')],
+)
+def test_load_receipt_creation_preserves_wire_format_and_refuses_overwrite(
+    tmp_path: Path, pretty: bool, expected: str
+) -> None:
+    target = tmp_path / "receipt.json"
+    report_io.write_new_json(target, {"z": "风", "a": 1}, pretty=pretty)
+    with pytest.raises(FileExistsError):
+        report_io.write_new_json(target, {"z": "changed"}, pretty=pretty)
+    assert target.read_text(encoding="utf-8") == expected

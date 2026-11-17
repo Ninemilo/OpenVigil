@@ -93,7 +93,7 @@ def model_bundle(directory):
         )
     manifest = {
         "contract": "openvigil.document-models.v1",
-        "docling_version": "2.133.0",
+        "docling_version": "2.150.0",
         "sources": [
             {
                 "name": f"identity-test-{index}",

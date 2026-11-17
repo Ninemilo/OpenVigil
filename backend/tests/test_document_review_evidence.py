@@ -48,7 +48,7 @@ async def reviewed_source(app, client):
                 text_sha256=hashlib.sha256(text.encode()).hexdigest(),
                 parser_version="explicit-fixture.v1",
                 page_number=2,
-                native_locator={"source_verified": True},
+                native_locator={"kind": "pdf_page", "page_number": 2, "source_verified": True},
                 char_start=0,
                 char_end=len(text),
                 text=text,
@@ -189,4 +189,15 @@ async def test_acceptance_rejects_missing_durable_command_receipt(app, reviewed_
         await session.commit()
         passage = await session.get(KnowledgePassage, passage_id)
         with pytest.raises(RuntimeError, match="receipt count"):
+            await document_numeric_review_evidence(session, browser, [passage])
+
+
+async def test_acceptance_rejects_page_drift_after_browser_review(app, reviewed_source):
+    browser, passage_id = reviewed_source
+    async with app.state.session_factory() as session, session.begin():
+        passage = await session.get(KnowledgePassage, passage_id)
+        passage.page_number = 1
+    async with app.state.session_factory() as session:
+        passage = await session.get(KnowledgePassage, passage_id)
+        with pytest.raises(RuntimeError, match="source page"):
             await document_numeric_review_evidence(session, browser, [passage])

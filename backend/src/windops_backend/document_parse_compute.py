@@ -183,8 +183,6 @@ def convert_pdf(
             or not 0 < height <= 2000
         ):
             raise ValueError("knowledge PDF page exceeds the bounded rendering dimensions")
-    if version("docling-slim") != "2.133.0":
-        raise ValueError("document parser package differs from the pinned reference")
     # These imports occur only in this dedicated process and optional runtime.
     base = import_module("docling.datamodel.base_models")
     options = import_module("docling.datamodel.pipeline_options")
