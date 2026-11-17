@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
+const operationFixtureDirectory = "lib/operations-fixtures";
+const operationFixtureSources = (
+  await readdir(new URL(`${operationFixtureDirectory}/`, root), { recursive: true })
+)
+  .filter((file) => file.endsWith(".ts"))
+  .map((file) => `${operationFixtureDirectory}/${file.replaceAll("\\", "/")}`);
 const coreSources = [
   "components/pages/dashboard-page.tsx",
   "components/pages/turbine-detail-page.tsx",
@@ -21,6 +27,7 @@ const coreSources = [
   "components/layout/app-shell-search.tsx",
   "components/layout/app-shell-notifications.tsx",
   "lib/operations-data.ts",
+  ...operationFixtureSources,
   "lib/diagnosis-data.ts",
   "lib/health-data.ts",
   "lib/telemetry-data.ts",
@@ -50,6 +57,7 @@ test("core fixture and API contracts cannot carry synthetic lifetime fields", ()
   const contractSources = contents.filter(([path]) =>
     [
       "lib/operations-data.ts",
+      ...operationFixtureSources,
       "lib/health-data.ts",
       "lib/telemetry-data.ts",
       "lib/generic-subsystem-data.ts",

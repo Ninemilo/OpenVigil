@@ -128,23 +128,7 @@ class OpenVigilWorkflowGraph:
         except Exception as exc:
             execution.status = ExecutionStatus.FAILED.value
             execution.error_code = type(exc).__name__
-            execution.completed_at = datetime.now(UTC)
-            execution.latency_ms = max(0, round((perf_counter() - started) * 1000))
-            execution.tool_calls = self.tools.consume_tool_calls()
-            usage = merge_embedding_usage(self.reasoning.consume_usage(), embedding_calls)
-            execution.provider = str(usage.get("provider", "sqlalchemy"))
-            execution.model = usage.get("model")
-            execution.token_usage = usage.get(
-                "token_usage",
-                {
-                    "prompt_tokens": 0,
-                    "completion_tokens": 0,
-                    "total_tokens": 0,
-                    "source": "not_applicable",
-                },
-            )
-            execution.evaluation_result = usage.get("evaluation_result", {})
-            execution.degradation_policy = usage.get("degradation_policy", {})
+            self._record_execution_completion(execution, started, embedding_calls)
             execution.public_output = {
                 "failure": {
                     "node": node,
@@ -172,23 +156,7 @@ class OpenVigilWorkflowGraph:
             raise
         execution.status = ExecutionStatus.SUCCEEDED.value
         execution.public_output = output
-        execution.completed_at = datetime.now(UTC)
-        execution.latency_ms = max(0, round((perf_counter() - started) * 1000))
-        execution.tool_calls = self.tools.consume_tool_calls()
-        usage = merge_embedding_usage(self.reasoning.consume_usage(), embedding_calls)
-        execution.provider = str(usage.get("provider", "sqlalchemy"))
-        execution.model = usage.get("model")
-        execution.token_usage = usage.get(
-            "token_usage",
-            {
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "total_tokens": 0,
-                "source": "not_applicable",
-            },
-        )
-        execution.evaluation_result = usage.get("evaluation_result", {})
-        execution.degradation_policy = usage.get("degradation_policy", {})
+        completed_at = self._record_execution_completion(execution, started, embedding_calls)
         if execution.provider == "litellm":
             # The business transaction may later roll back. Preserve only billing
             # and request metadata, never rolled-back decisions or public outputs.
@@ -216,11 +184,37 @@ class OpenVigilWorkflowGraph:
                 "agent_role": agent_role,
                 "status": execution.status,
                 "latency_ms": execution.latency_ms,
-                "completed_at": execution.completed_at.isoformat(),
+                "completed_at": completed_at.isoformat(),
             },
         )
         await self.session.flush()
         return output
+
+    def _record_execution_completion(
+        self,
+        execution: AgentExecution,
+        started: float,
+        embedding_calls: list[dict[str, Any]],
+    ) -> datetime:
+        completed_at = datetime.now(UTC)
+        execution.completed_at = completed_at
+        execution.latency_ms = max(0, round((perf_counter() - started) * 1000))
+        execution.tool_calls = self.tools.consume_tool_calls()
+        usage = merge_embedding_usage(self.reasoning.consume_usage(), embedding_calls)
+        execution.provider = str(usage.get("provider", "sqlalchemy"))
+        execution.model = usage.get("model")
+        execution.token_usage = usage.get(
+            "token_usage",
+            {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "source": "not_applicable",
+            },
+        )
+        execution.evaluation_result = usage.get("evaluation_result", {})
+        execution.degradation_policy = usage.get("degradation_policy", {})
+        return completed_at
 
     async def _persist_evidence(
         self,
