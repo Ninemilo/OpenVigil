@@ -32,10 +32,9 @@ test("the global stylesheet preserves import order and the reviewed rule stream"
     styleFiles.map((file) => readFile(new URL(`app/styles/${file}`, root), "utf8")),
   );
   const ruleStream = modules.join("").replaceAll(/\s+/g, "");
-  // Scoped maintenance-review rules visually checked on desktop and phone viewports.
-  // Evidence: .artifacts/improvements/review-ui/after/; existing rules and import order unchanged.
+  // Includes the guide entry's desktop and mobile top-bar rules.
   assert.equal(
     createHash("sha256").update(ruleStream).digest("hex"),
-    "65cf7a9fa73cb01163487a260aca746ba4f73474c90599bf2580ac1e12a8240c",
+    "c1f5174a355cda509f9985e5e67335a79b4457cb3c65ab564f4f7b586efc0605",
   );
 });

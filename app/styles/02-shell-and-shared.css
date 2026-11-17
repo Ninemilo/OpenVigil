@@ -460,6 +460,25 @@ kbd {
   width: 1px;
 }
 
+.topbar-guide {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  color: var(--foreground-muted);
+  font-size: var(--font-secondary);
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.topbar-guide:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
 .notification-dot {
   background: var(--critical);
   border: 2px solid var(--surface);

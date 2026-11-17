@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  BookOpen,
   ChevronDown,
   Cloud,
   CloudFog,
@@ -47,6 +48,7 @@ import type { RuntimeMode } from "./app-shell-navigation";
 import { ShellSidebar, useShellNavigation } from "./app-shell-sidebar";
 import { CommandPalette } from "./app-shell-search";
 import { ShellNotifications } from "./app-shell-notifications";
+import { GuideLink } from "./guide-link";
 
 type RuntimeEnvelope = {
   readonly data: {
@@ -399,6 +401,15 @@ export function AppShell({
               <kbd>Ctrl K</kbd>
             </button>
             <div className="topbar-divider" />
+            <GuideLink
+              className="topbar-guide"
+              href="/guide"
+              aria-label="使用指南"
+              title="使用指南"
+            >
+              <BookOpen size={17} aria-hidden="true" />
+              <span>使用指南</span>
+            </GuideLink>
             <ThemeControl />
             <ShellNotifications
               open={notificationsOpen}

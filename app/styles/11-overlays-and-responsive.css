@@ -236,6 +236,12 @@
   .global-search kbd {
     display: none;
   }
+  .topbar-guide {
+    min-width: 36px;
+  }
+  .topbar-guide span {
+    display: none;
+  }
   .user-menu > span:not(.avatar),
   .user-menu > svg {
     display: none;
@@ -280,6 +286,10 @@
   .mobile-menu-button,
   .global-search {
     width: 44px;
+  }
+  .topbar-guide {
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .nav-item {

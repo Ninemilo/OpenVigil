@@ -190,11 +190,10 @@ export function DataTable<TData extends RowData>({
     event: KeyboardEvent<HTMLTableRowElement> | MouseEvent<HTMLTableRowElement>,
   ): boolean => {
     if (event.target === event.currentTarget || !(event.target instanceof Element)) return false;
-    return Boolean(
-      event.target.closest(
-        'a[href],button,input,select,textarea,summary,[role="button"],[role="link"],[contenteditable="true"],[tabindex]:not([tabindex="-1"]),[data-row-activation-ignore]',
-      ),
+    const interactive = event.target.closest(
+      'a[href],button,input,select,textarea,summary,[role="button"],[role="link"],[contenteditable="true"],[tabindex]:not([tabindex="-1"]),[data-row-activation-ignore]',
     );
+    return interactive !== null && interactive !== event.currentTarget;
   };
   const onRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, row: TData): void => {
     if (cameFromInteractiveChild(event)) return;

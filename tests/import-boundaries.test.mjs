@@ -84,13 +84,9 @@ const findCycles = () => {
 const runtimeRoots = sourceFiles.filter((filePath) => {
   const relativePath = normalizePath(filePath);
   return (
-    /^app\/(?:.*\/)?(?:page|route)\.tsx?$/.test(relativePath) ||
+    /^app\/(?:.*\/)?(?:page|route|layout|error|loading|not-found)\.tsx?$/.test(relativePath) ||
     [
       "app/chatgpt-auth.ts",
-      "app/error.tsx",
-      "app/layout.tsx",
-      "app/loading.tsx",
-      "app/not-found.tsx",
       "build/sites-vite-plugin.ts",
       "db/schema.ts",
       "lib/index.ts",
@@ -178,15 +174,27 @@ test("the application page and Worker route inventories remain stable", () => {
   const pages = sourceFiles.filter((filePath) => normalizePath(filePath).endsWith("/page.tsx"));
   const routes = sourceFiles.filter((filePath) => normalizePath(filePath).endsWith("/route.ts"));
 
-  assert.equal(pages.length, 24);
+  assert.equal(pages.length, 26);
   assert.ok(pages.some((filePath) => normalizePath(filePath) === "app/structural/page.tsx"));
   assert.equal(
     pages.filter((filePath) => normalizePath(filePath) === "app/login/page.tsx").length,
     1,
   );
   assert.equal(
-    inventoryHash(pages.filter((filePath) => normalizePath(filePath) !== "app/login/page.tsx")),
+    inventoryHash(
+      pages.filter((filePath) => {
+        const page = normalizePath(filePath);
+        return page !== "app/login/page.tsx" && !page.startsWith("app/guide/");
+      }),
+    ),
     "52a002a68f350cf9b0bdc81e7ffdf01f61b7b5344e11b02dc9de3afdc47dc4e6",
+  );
+  assert.deepEqual(
+    pages
+      .map(normalizePath)
+      .filter((page) => page.startsWith("app/guide/"))
+      .sort(),
+    ["app/guide/[chapter]/page.tsx", "app/guide/page.tsx"],
   );
   assert.equal(routes.length, 38);
   assert.equal(
